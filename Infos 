@@ -1,0 +1,15 @@
+using ADNLPModels # Module de base pour définir des problèmes
+using NLPModels   # Contient des méthodes utiles pour avoir des infos sur les problèmes
+
+using JuMP #language de modélisation pour l'optimisation natif dans Julia
+using Ipopt # solveur pour l'optimisation non-linéaire
+using MathOptInterface # permet de communiquer entre le modèle et le solveur
+
+using Krylov # contient des solveurs pour les moindres carrés linéaire
+
+using OptimizationProblems # Contient des problèmes d'optimisation
+using OptimizationProblems.ADNLPProblems
+
+using NLSProblems # easy to solve problems
+using SolverBenchmark # pour exécuter les solveurs sur tous les problèmes test
+
