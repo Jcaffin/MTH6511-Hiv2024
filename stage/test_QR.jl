@@ -7,14 +7,14 @@
 
     σ = 10^(-12)
 
-    d₁ = linear_system_QR(A₁,b₁)
-    d₂ = linear_system_QR(A₂,b₂)
+    x₁ = linear_system_QR(A₁,b₁)
+    x₂ = linear_system_QR(A₂,b₂)
 
     sol₁ = [5/2, 1, -1/2]
     sol₂ = [-1, -1, 7]
 
     for k = 1:3
-        @test abs(sol₁[k] - d₁[k]) < σ
-        @test abs(sol₂[k] - d₂[k]) < σ
+        @test abs(sol₁[k] - x₁[k]) < σ
+        @test abs(sol₂[k] - x₂[k]) < σ
     end
 end
