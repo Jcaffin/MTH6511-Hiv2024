@@ -23,16 +23,14 @@ pb_test1 = pb_sc[1]
 pb_test2 = pb_sc[7]
 
 
-obj, grad, stats = LM(pb_test1)
+obj, grad, stats = LM(pb_test2)
 rangs = 1:length(grad)
-obj_D, grad_D, stats_D = LM_D(pb_test1)
+obj_D, grad_D, stats_D = LM_D(pb_test2)
 rangs_D = 1:length(grad_D)
 
-norm_obj = [norm(objectif) for objectif ∈ obj]
-norm_obj_D = [norm(objectif) for objectif ∈ obj_D]
-
-plot(rangs, norm_obj, xlabel="k", ylabel="‖J'.F‖",yaxis =:log10, label="LM classique")
-plot!(rangs_D, norm_obj_D, label="LM avec D")
+plot(rangs, obj, xlabel="k", ylabel="‖J‖",yaxis =:log10, label="LM classique")
+plot!(rangs_D, obj_D, label="LM avec D")
+savefig("obj_mgh03.png")
 
 
 ######################## Profils de performance #########################

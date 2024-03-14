@@ -75,7 +75,7 @@ function LM(nlp          :: AbstractNLSModel;
             end
         end
 
-        push!(objectif,Fxp)
+        push!(objectif,normFx)
         push!(gradient, normGx)
 
         @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, status, norm(d), λ])
@@ -221,7 +221,7 @@ function LM_D(nlp        :: AbstractNLSModel;
             end
         end
 
-        push!(objectif,Fxp)
+        push!(objectif,normFx)
         push!(gradient, normGx)
 
         @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, status, sty, norm(d), λ])
