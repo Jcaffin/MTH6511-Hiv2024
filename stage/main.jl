@@ -13,39 +13,40 @@ include("LM.jl")
 
 ###################### Test sur un problème unique #######################
 
-problems_names = setdiff(names(NLSProblems), [:NLSProblems])
-problems = (eval((problem))() for problem ∈ problems_names)
-pb = collect(problems)
-pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
+# problems_names = setdiff(names(NLSProblems), [:NLSProblems])
+# problems = (eval((problem))() for problem ∈ problems_names)
+# pb = collect(problems)
+# pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
 
 
-pb_test1 = pb_sc[1]
-pb_test2 = pb_sc[7]
+# pb_test1 = pb_sc[1]
+# pb_test2 = pb_sc[7]
 
 
-obj, grad, stats = LM(pb_test2)
-rangs = 1:length(grad)
-obj_D, grad_D, stats_D = LM_D(pb_test2)
-rangs_D = 1:length(grad_D)
+# stats, obj, grad = LM(pb_test2)
+# rangs = 1:length(grad)
+# stats_D, obj_D, grad_D = LM_D(pb_test2)
+# rangs_D = 1:length(grad_D)
 
-plot(rangs, obj, xlabel="k", ylabel="‖J‖",yaxis =:log10, label="LM classique")
-plot!(rangs_D, obj_D, label="LM avec D")
-savefig("obj_mgh03.png")
+# plot(rangs, grad, xlabel="k", ylabel="‖J‖",yaxis =:log10, label="LM classique")
+# plot!(rangs_D, grad_D, label="LM avec D")
+#savefig("obj_mgh03.png")
 
 
 ######################## Profils de performance #########################
 
 
-# problems_names = setdiff(names(NLSProblems), [:NLSProblems])
-# problems = (eval((problem))() for problem ∈ problems_names)
+problems_names = setdiff(names(NLSProblems), [:NLSProblems])
+problems = (eval((problem))() for problem ∈ problems_names)
 
-# solvers = Dict(:LM_D => LM_D)
-# stats = bmark_solvers(solvers, problems)
+solvers = Dict(:LM => LM, :LM_D => LM_D)
+stats = bmark_solvers(solvers, problems)
 
+cols = [:name, :status, :objective, :elapsed_time, :iter]
+for solver ∈ keys(solvers)
+  pretty_stats(stats[solver][!, cols])
+end
+cost(df) = (df.status .!= :first_order) * Inf + df.iter
+performance_profile(stats, cost)
 
-
-
-
-
-
-
+#savefig("performance_profile.png")

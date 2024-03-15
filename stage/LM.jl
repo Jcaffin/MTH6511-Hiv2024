@@ -16,11 +16,13 @@ function LM(nlp          :: AbstractNLSModel;
     ################ On évalue F(x₀) et J(x₀) ################
     Fx = residual(nlp, x)
     Jx = jac_residual(nlp, x)
+    Gx = Jx' * Fx
 
     ################## On calcule leur norme #################
-    normFx   = norm(Fx)
-    normGx₀ = norm(Jx' * Fx)
+    normFx₀   = norm(Fx)
+    normGx₀ = norm(Gx)
     normGx = normGx₀
+    normFx = normFx₀
 
     iter = 0    
     λ = 0.0
@@ -30,12 +32,12 @@ function LM(nlp          :: AbstractNLSModel;
     tired   = neval_residual(nlp) > max_eval || iter_time > max_time
     status  = :unknown
     start_time = time()
-    optimal    = min(normFx, normGx) ≤ ϵₐ + ϵᵣ*normGx₀
+    optimal    = normGx ≤ ϵₐ + ϵᵣ*normGx₀ || normFx ≤ ϵₐ + ϵᵣ*normFx₀
 
     #################### Tracé des graphes ###################
 
-    objectif = []
-    gradient = []
+    objectif = [normFx]
+    gradient = [normGx]
 
     @info log_header(
         [:iter, :nf, :obj, :grad, :status, :nd, :λ],
@@ -106,19 +108,18 @@ function LM(nlp          :: AbstractNLSModel;
             :unknown
         end
     
-    return objectif, 
-    gradient,
-    GenericExecutionStats(nlp; 
+    return GenericExecutionStats(nlp; 
                     status, 
                     solution = x,
                     objective = normFx^2 / 2,
                     dual_feas = normGx,
                     iter = iter, 
-                    elapsed_time = iter_time)
+                    elapsed_time = iter_time)#, objectif, gradient
 end
 
 
-function LM_D(nlp        :: AbstractNLSModel; 
+function LM_D(nlp        :: AbstractNLSModel;
+    fctDk    :: Function =  Andrei,
     x        :: AbstractVector = nlp.meta.x0, 
     ϵₐ       :: AbstractFloat = 10^(-8),
     ϵᵣ       :: AbstractFloat = 10^(-8),
@@ -147,9 +148,10 @@ function LM_D(nlp        :: AbstractNLSModel;
 
 
     ################## On calcule leur norme #################
-    normFx   = norm(Fx)
+    normFx₀   = norm(Fx)
     normGx₀ = norm(Gx)
     normGx = normGx₀
+    normFx = normFx₀
 
     iter = 0    
     λ = 0.0
@@ -159,29 +161,25 @@ function LM_D(nlp        :: AbstractNLSModel;
     tired   = neval_residual(nlp) > max_eval || iter_time > max_time
     status  = :unknown
     start_time = time()
-    optimal    = min(normFx, normGx) ≤ ϵₐ + ϵᵣ*normGx₀
+    optimal    = normGx ≤ ϵₐ + ϵᵣ*normGx₀ || normFx ≤ ϵₐ + ϵᵣ*normFx₀
 
     #################### Tracé des graphes ###################
-    objectif = []
-    gradient = []
+    objectif = [normFx]
+    gradient = [normGx]
 
     @info log_header(
-        [:iter, :nf, :obj, :grad, :status, :sty, :nd, :λ],
-        [Int, Int, Float64, Float64, String, Float64, Float64, Float64],
+        [:iter, :nf, :obj, :grad, :status, :nd, :λ],
+        [Int, Int, Float64, Float64, String, Float64, Float64],
         hdr_override=Dict(
-        :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :sty => "sᵀy", :nd => "‖d‖", :λ => "λ")
+        :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :nd => "‖d‖", :λ => "λ")
         )
 
     while !(optimal || tired)
         ########################### Calcul de D ############################
         yk₋₁ = Jx' * Fx₋₁ - φk₋₁
         sk₋₁ = x - x₋₁
-        sty  = sk₋₁' * yk₋₁
-
-        if sty > 0  ###### à l'itération 1, sty = 0 donc Dk = I(n)
-            σk = sty /(sk₋₁' * sk₋₁)
-            Dk = σk * I(n)
-        end
+        
+        Dk = fctDk(Dk, sk₋₁, yk₋₁)
             
 
         ################# Calcul de d par factorisation QR #################
@@ -224,7 +222,7 @@ function LM_D(nlp        :: AbstractNLSModel;
         push!(objectif,normFx)
         push!(gradient, normGx)
 
-        @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, status, sty, norm(d), λ])
+        @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, status, norm(d), λ])
 
         iter_time    = time() - start_time
         iter        += 1
@@ -252,14 +250,54 @@ function LM_D(nlp        :: AbstractNLSModel;
         :unknown
         end
 
-    return objectif, 
-    gradient,
-    GenericExecutionStats(nlp; 
+    return GenericExecutionStats(nlp; 
             status, 
             solution = x,
             objective = normFx^2 / 2,
             dual_feas = normGx,
             iter = iter, 
-            elapsed_time = iter_time)
+            elapsed_time = iter_time)#, objectif, gradient
 end
 
+
+
+function SPG(Dk₋₁, sk₋₁, yk₋₁)
+    n   = size(Dk₋₁)[1]
+    
+    sty = sk₋₁' * yk₋₁
+    if sty > 0 
+        σk  = sty /(sk₋₁' * sk₋₁)
+        Dk  = σk * I(n)
+        return Dk
+    else
+        return Dk₋₁
+    end
+end
+
+function Zhu(Dk₋₁, sk₋₁, yk₋₁)
+    Sk₋₁ = diagm(sk₋₁)
+    tr   = sum(Sk₋₁^4)
+
+    frac  = sk₋₁'*(yk₋₁ - Dk₋₁ * sk₋₁)/tr
+    if frac > 0
+        Dk   = Dk₋₁ + frac * (Sk₋₁^2)
+        return Dk
+    else
+        return Dk₋₁
+    end
+end
+
+function Andrei(Dk₋₁, sk₋₁, yk₋₁)
+    n    = size(Dk₋₁)[1]
+    Sk₋₁ = diagm(sk₋₁)
+    min  = minimum(sk₋₁)^2
+    tr   = sum(Sk₋₁^4)
+
+    frac = sk₋₁'*(yk₋₁ + sk₋₁ - Dk₋₁ * sk₋₁)/tr
+    if frac * min > 1
+        Dk   = Dk₋₁ + frac * (Sk₋₁^2) - I(n)
+        return Dk
+    else
+        return Dk₋₁
+    end
+end 
