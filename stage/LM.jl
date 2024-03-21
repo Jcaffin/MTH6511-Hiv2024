@@ -2,18 +2,19 @@ using LinearAlgebra, NLPModels, Printf, Logging, SolverCore, Test, ADNLPModels
 
 
 function LM_D(nlp        :: AbstractNLSModel;
-    fctDk    :: Function =  Andrei,
-    x0       :: AbstractVector = nlp.meta.x0, 
-    ϵₐ       :: AbstractFloat = 10^(-8),
-    ϵᵣ       :: AbstractFloat = 10^(-8),
-    η₁       :: AbstractFloat = 1e-3, 
-    η₂       :: AbstractFloat = 0.66, 
-    σ₁       :: AbstractFloat = 10.0, 
-    σ₂       :: AbstractFloat = 0.5,
-    ApproxD  :: Bool = true,
-    max_eval :: Int = 1000, 
-    max_time :: AbstractFloat = 60.,
-    max_iter :: Int = typemax(Int64)
+    fctDk          :: Function =  Andrei,
+    x0             :: AbstractVector = nlp.meta.x0, 
+    ϵₐ             :: AbstractFloat = 10^(-8),
+    ϵᵣ             :: AbstractFloat = 10^(-8),
+    η₁             :: AbstractFloat = 1e-3, 
+    η₂             :: AbstractFloat = 0.66, 
+    σ₁             :: AbstractFloat = 10.0, 
+    σ₂             :: AbstractFloat = 0.5,
+    ApproxD        :: Bool = true,
+    Disp_grad_obj  :: Bool = false,
+    max_eval       :: Int = 1000, 
+    max_time       :: AbstractFloat = 60.,
+    max_iter       :: Int = typemax(Int64)
     )
 
     ################ On évalue F(x₀) et J(x₀) ################
@@ -135,14 +136,24 @@ function LM_D(nlp        :: AbstractNLSModel;
         else
         :unknown
         end
-
-    return GenericExecutionStats(nlp; 
+    
+    if Disp_grad_obj
+        return GenericExecutionStats(nlp; 
             status, 
             solution = x,
             objective = normFx^2 / 2,
             dual_feas = normGx,
             iter = iter, 
             elapsed_time = iter_time), objectif, gradient
+    else
+        return GenericExecutionStats(nlp; 
+            status, 
+            solution = x,
+            objective = normFx^2 / 2,
+            dual_feas = normGx,
+            iter = iter, 
+            elapsed_time = iter_time) 
+    end
 end
 
 
@@ -160,18 +171,18 @@ function SPG(Dk₋₁, sk₋₁, yk₋₁)
     end
 end
 
-function Zhu(Dk₋₁, sk₋₁, yk₋₁)
-    Sk₋₁ = diagm(sk₋₁)
-    tr   = sum(Sk₋₁^4)
+# function Zhu(Dk₋₁, sk₋₁, yk₋₁)
+#     Sk₋₁ = diagm(sk₋₁)
+#     tr   = sum(Sk₋₁^4)
 
-    frac  = sk₋₁'*(yk₋₁ - Dk₋₁ * sk₋₁)/tr
-    if frac > 0.01
-        Dk   = Dk₋₁ + frac * (Sk₋₁^2)
-        return Dk
-    else
-        return Dk₋₁
-    end
-end
+#     frac  = sk₋₁'*(yk₋₁ - Dk₋₁ * sk₋₁)/tr
+#     if frac > 0.01
+#         Dk   = Dk₋₁ + frac * (Sk₋₁^2)
+#         return Dk
+#     else
+#         return Dk₋₁
+#     end
+# end
 
 # function Andrei(Dk₋₁, sk₋₁, yk₋₁)
 #     n    = size(Dk₋₁)[1]
@@ -188,6 +199,23 @@ end
 #         return Dk₋₁
 #     end
 # end 
+
+function Zhu(Dk₋₁, sk₋₁, yk₋₁; ϵ = 0.01)
+    n    = size(Dk₋₁)[1]
+    tr   = sum(sk₋₁ .^ 4)
+    frac  = sk₋₁'*(yk₋₁ - Dk₋₁ * sk₋₁)/tr
+    Dk   = zeros(n,n)
+
+    for i = 1:n
+        Di = Dk₋₁[i,i] + frac * sk₋₁[i]^2
+        if Di > ϵ
+            Dk[i,i] = Di
+        else
+            Dk[i,i] = 1
+        end
+    end
+    return Dk
+end 
 
 
 function Andrei(Dk₋₁, sk₋₁, yk₋₁; ϵ = 0.01)
@@ -206,3 +234,9 @@ function Andrei(Dk₋₁, sk₋₁, yk₋₁; ϵ = 0.01)
     end
     return Dk
 end 
+
+
+LM        = (nlp ; bool=false) -> LM_D(nlp; ApproxD = false, Disp_grad_obj = bool)
+LM_SPG    = (nlp ; bool=false) -> LM_D(nlp; fctDk = SPG, Disp_grad_obj = bool)
+LM_Zhu    = (nlp ; bool=false) -> LM_D(nlp; fctDk = Zhu, Disp_grad_obj = bool)
+LM_Andrei = (nlp ; bool=false) -> LM_D(nlp; fctDk = Andrei, Disp_grad_obj = bool)

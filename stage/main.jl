@@ -1,64 +1,66 @@
 using ADNLPModels, JSOSolvers, NLSProblems, SolverBenchmark, Plots
 include("LM.jl")
 
-############################ Test Himmelblau #############################
-
-# FH(x) = [x[2]+x[1].^2-11, x[1]+x[2].^2-7]
-# x0H = [10., 20.]
-# himmelblau_nls = ADNLSModel(FH,x0H,2)
-
-# objectif, gradient, stats = LM_D(himmelblau_nls, himmelblau_nls.meta.x0, 1e-10, 1e-10)
-# @test stats.status == :first_order
+problems_names = setdiff(names(NLSProblems), [:NLSProblems])
+problems = (eval((problem))() for problem ∈ problems_names)
 
 
 ###################### Test sur un problème unique #######################
 
-problems_names = setdiff(names(NLSProblems), [:NLSProblems])
-problems = (eval((problem))() for problem ∈ problems_names)
 pb = collect(problems)
 pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
 pb_test1 = filter(problem -> problem.meta.name == "tp272", pb)
 
-n = 15
-pb_test = pb_sc[n]
-pb_testD = pb_sc[n]
-pb_testZ = pb_sc[n]
-pb_testA = pb_sc[n]
+solvers = [lm,
+        LM_SPG,
+        LM_Zhu,
+        LM_Andrei]
+solvers_names = Dict(lm => "LM", LM_SPG => "LM_SPG", LM_Zhu => "LM_zhu", LM_Andrei => "LM_Andrei")
+pb_test = pb_sc[7]
 
-stats, obj, grad = LM_D(pb_test1[1]; ApproxD = false)
-rangs = 1:length(grad)
-# stats_D, obj_D, grad_D = LM_D(pb_test1[1]; fctDk = SPG)
-# rangs_D = 1:length(grad_D)
-# stats_Z, obj_Z, grad_Z = LM_D(pb_test1[1]; fctDk = Zhu)
-# rangs_Z = 1:length(grad_Z)
-stats_A, obj_A, grad_A = LM_D(pb_test1[1]; fctDk = Andrei)
-rangs_A = 1:length(grad_A)
+function comparaison_solvers(;type :: String ="grad" , save :: Bool = false)
+    for k = 1:length(solvers) 
+        solver = solvers[k]
+        name = solvers_names[solver]
 
-plot(rangs, grad, xlabel="k", ylabel="‖JᵀF‖",yaxis =:log10, label="LM classique")
-# plot!(rangs_D, grad_D, label="LM avec D (SPG)")
-# plot!(rangs_Z, grad_Z, label="LM avec D (Z)")
-plot!(rangs_A, grad_A, label="LM avec D (A)")
+        stats, obj, grad = solver(pb_test; bool=true)
+        to_plot = (type == "grad") ? grad : obj
+        y_label = (type == "grad") ? "‖JᵀF‖" : "‖F‖"
+        rangs = 1:length(grad)
+        if k == 1
+            plot(rangs, to_plot, xlabel="k", ylabel=y_label,yaxis =:log10, label=name, title="problème : "*pb_test.meta.name)
+        else
+            plot!(rangs, to_plot, label=name)
+        end
+        reset!(pb_test)
+    end
+    display(current())
+    save && savefig(type*"_"*pb_test.meta.name*".png")
+end
 # savefig("obj_mgh03.png")
 
 
 ######################## Profils de performance #########################
 
 
-# problems_names = setdiff(names(NLSProblems), [:NLSProblems])
-# problems = (eval((problem))() for problem ∈ problems_names)
 
-# solvers = Dict(
-#   :LM => model -> LM_D(model; ApproxD = false),
-#   :LM_SPG => model -> LM_D(model; fctDk = SPG),
-#   :LM_Andrei => model -> LM_D(model; fctDk = Andrei)
-# )
-# stats = bmark_solvers(solvers, problems)
+function pp(; save :: Bool = false)
+    solvers = Dict(
+    :LM => LM,
+    :LM_SPG => LM_SPG,
+    :LM_Zhu => LM_Zhu,
+    :LM_Andrei => LM_Andrei
+    )
+    stats = bmark_solvers(solvers, problems)
 
-# cols = [:name, :status, :objective, :elapsed_time, :iter]
-# for solver ∈ keys(solvers)
-#   pretty_stats(stats[solver][!, cols])
-# end
-# cost(df) = (df.status .!= :first_order) * Inf + df.iter
-# performance_profile(stats, cost)
+    cols = [:name, :status, :objective, :elapsed_time, :iter]
+    for solver ∈ keys(solvers)
+        pretty_stats(stats[solver][!, cols])
+    end
+    cost(df) = (df.status .!= :first_order) * Inf + df.iter
+    performance_profile(stats, cost)
+    display(current())
+    save && savefig("performance_profile.png")
+end
 
-# # #savefig("performance_profile.png")
+# 
