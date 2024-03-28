@@ -4,8 +4,8 @@ using LinearAlgebra, NLPModels, Printf, Logging, SolverCore, Test, ADNLPModels
 function LM_D(nlp        :: AbstractNLSModel;
     fctDk          :: Function =  Andrei,
     x0             :: AbstractVector = nlp.meta.x0, 
-    ϵₐ             :: AbstractFloat = 10^(-8),
-    ϵᵣ             :: AbstractFloat = 10^(-8),
+    ϵₐ             :: AbstractFloat = 1e-8,
+    ϵᵣ             :: AbstractFloat = 1e-8,
     η₁             :: AbstractFloat = 1e-3, 
     η₂             :: AbstractFloat = 0.66, 
     σ₁             :: AbstractFloat = 10.0, 
@@ -29,9 +29,9 @@ function LM_D(nlp        :: AbstractNLSModel;
     sk₋₁   = zeros(n)
     
     if ApproxD
-        Dk = I(n)
+        Dk = Diagonal(ones(n))
     else
-        Dk = zeros(n,n)
+        Dk = Diagonal(zeros(n))
     end
 
     ################## On calcule leur norme #################
@@ -55,19 +55,20 @@ function LM_D(nlp        :: AbstractNLSModel;
     gradient = [normGx]
 
     @info log_header(
-        [:iter, :nf, :obj, :grad, :status, :nd, :λ],
-        [Int, Int, Float64, Float64, String, Float64, Float64],
+        [:iter, :nf, :obj, :grad, :status, :nd, :nD, :λ],
+        [Int, Int, Float64, Float64, String, Float64, Float64, Float64],
         hdr_override=Dict(
-        :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :nd => "‖d‖", :λ => "λ")
+        :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :nd => "‖d‖", :nD => "‖D‖∞", :λ => "λ")
         )
 
     while !(optimal || tired)
         ################# Calcul de d par factorisation QR #################
-        A = [Jx; (Dk + λ * I(n))^(1/2)]
+        A = [Jx; (Dk + λ * I)^(1/2)]
         b = [Fx; zeros(n)]
+        b .= -b
 
         QR = qr(A)
-        d = QR\(-b)
+        d = QR\(b)
 
         ######################## Calcul du ratio ρ #########################
         xp      = x + d
@@ -83,6 +84,7 @@ function LM_D(nlp        :: AbstractNLSModel;
             ############### Stockage des anciennes valeurs ###############
             x₋₁  = x
             Fx₋₁ = Fx
+            Jx₋₁ = Jx
             φk₋₁ = Gx
 
             ######################## Mise à jour #########################
@@ -94,7 +96,8 @@ function LM_D(nlp        :: AbstractNLSModel;
             normGx = norm(Gx)
 
             ######################## Calcul de D #########################
-            yk₋₁ = Jx' * Fx₋₁ - φk₋₁
+            # yk₋₁ = Jx' * Fx₋₁ - φk₋₁
+            yk₋₁ = Jx' * Fx - Jx₋₁' * Fx
             sk₋₁ = x - x₋₁
 
             if ApproxD
@@ -110,7 +113,7 @@ function LM_D(nlp        :: AbstractNLSModel;
         push!(objectif,normFx)
         push!(gradient, normGx)
 
-        @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, status, norm(d), λ])
+        @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, status, norm(d), norm(Dk,Inf), λ])
 
         iter_time    = time() - start_time
         iter        += 1
@@ -118,7 +121,8 @@ function LM_D(nlp        :: AbstractNLSModel;
         many_evals   = neval_residual(nlp) > max_eval
         iter_limit   = iter > max_iter
         tired        = many_evals || iter_time > max_time || iter_limit
-        optimal      = min(normFx, normGx) ≤ ϵₐ + ϵᵣ*normGx₀
+        optimal      = normGx ≤ ϵₐ + ϵᵣ*normGx₀ || normFx ≤ ϵₐ + ϵᵣ*normFx₀
+        
     end
 
     status = if optimal 
@@ -158,85 +162,59 @@ end
 
 
 
-function SPG(Dk₋₁, sk₋₁, yk₋₁)
-    n   = size(Dk₋₁)[1]
-    
-    sty = sk₋₁' * yk₋₁
-    if sty > 0.01
-        σk  = sty /(sk₋₁' * sk₋₁)
-        Dk  = σk * I(n)
-        return Dk
+function SPG(D, s, y; ϵ = 0.01)
+    n   = size(D,1)
+    sty = s' * y
+    ss  = s' * s
+    if sty > ϵ
+        σ  = sty /ss
+        for i = 1:n
+            D[i,i]  = σ
+        end
+        return D
     else
-        return Dk₋₁
+        return D
     end
 end
 
-# function Zhu(Dk₋₁, sk₋₁, yk₋₁)
-#     Sk₋₁ = diagm(sk₋₁)
-#     tr   = sum(Sk₋₁^4)
-
-#     frac  = sk₋₁'*(yk₋₁ - Dk₋₁ * sk₋₁)/tr
-#     if frac > 0.01
-#         Dk   = Dk₋₁ + frac * (Sk₋₁^2)
-#         return Dk
-#     else
-#         return Dk₋₁
-#     end
-# end
-
-# function Andrei(Dk₋₁, sk₋₁, yk₋₁)
-#     n    = size(Dk₋₁)[1]
-#     Sk₋₁ = diagm(sk₋₁)
-#     min  = minimum(sk₋₁)^2
-#     tr   = sum(Sk₋₁^4)
-
-#     frac = sk₋₁'*(yk₋₁ + sk₋₁ - Dk₋₁ * sk₋₁)/tr
-#     if frac * min > 1.01
-#         Dk   = Dk₋₁ + frac * (Sk₋₁^2) - I(n)
-#         @show min(diag(Dk))
-#         return Dk
-#     else
-#         return Dk₋₁
-#     end
-# end 
-
-function Zhu(Dk₋₁, sk₋₁, yk₋₁; ϵ = 0.01)
-    n    = size(Dk₋₁)[1]
-    tr   = sum(sk₋₁ .^ 4)
-    frac  = sk₋₁'*(yk₋₁ - Dk₋₁ * sk₋₁)/tr
-    Dk   = zeros(n,n)
-
+function Zhu(D, s, y; ϵ = 0.01)
+    n    = size(D,1)
+    tr   = sum(si^4 for si ∈ s)
+    sy   = s' * y
+    sDs = sum(s[i]^2 * D[i, i] for i = 1 : n)
+    frac  = (sy - sDs) / tr
     for i = 1:n
-        Di = Dk₋₁[i,i] + frac * sk₋₁[i]^2
+        Di = D[i,i] + frac * s[i]^2
         if Di > ϵ
-            Dk[i,i] = Di
+            D[i,i] = Di
         else
-            Dk[i,i] = 1
+            D[i,i] = 1
         end
     end
-    return Dk
+    return D
 end 
 
-
-function Andrei(Dk₋₁, sk₋₁, yk₋₁; ϵ = 0.01)
-    n    = size(Dk₋₁)[1]
-    tr   = sum(sk₋₁ .^ 4)
-    frac = sk₋₁'*(yk₋₁ + sk₋₁ - Dk₋₁ * sk₋₁)/tr
-    Dk   = zeros(n,n)
+function Andrei(D, s, y; ϵ = 0.01)
+    n    = size(D)[1]
+    tr   = sum(si^4 for si ∈ s)
+    sy   = s' * y 
+    ss   = s' * s
+    sDs  = s' * D * s
+    frac = (sy + ss - sDs)/tr
 
     for i = 1:n
-        Di = Dk₋₁[i,i] + frac * sk₋₁[i]^2 - 1
+        Di = D[i,i] + frac * s[i]^2 - 1
         if Di > ϵ
-            Dk[i,i] = Di
+            D[i,i] = Di
         else
-            Dk[i,i] = 1
+            D[i,i] = 1
         end
     end
-    return Dk
+    return D
 end 
 
 
 LM        = (nlp ; bool=false) -> LM_D(nlp; ApproxD = false, Disp_grad_obj = bool)
-LM_SPG    = (nlp ; bool=false) -> LM_D(nlp; fctDk = SPG, Disp_grad_obj = bool)
-LM_Zhu    = (nlp ; bool=false) -> LM_D(nlp; fctDk = Zhu, Disp_grad_obj = bool)
-LM_Andrei = (nlp ; bool=false) -> LM_D(nlp; fctDk = Andrei, Disp_grad_obj = bool)
+LM_SPG    = (nlp ; bool=false) -> LM_D(nlp; fctDk = SPG    , Disp_grad_obj = bool)
+LM_Zhu    = (nlp ; bool=false) -> LM_D(nlp; fctDk = Zhu    , Disp_grad_obj = bool)
+LM_Andrei = (nlp ; bool=false) -> LM_D(nlp; fctDk = Andrei , Disp_grad_obj = bool)
