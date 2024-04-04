@@ -1,13 +1,25 @@
 using LinearAlgebra, NLPModels, Printf, Logging, SolverCore, Test, ADNLPModels
 
+function argmin_q(Fx, Jx, δk, Dk, λ, n)
+    if δk == 0
+        A = [Jx; (Dk + λ * I)^(1/2)]
+    else
+        A = [Jx; (λ * I)^(1/2)]
+    end
+    b = [Fx; zeros(n)]
+    b .= -b
+    QR = qr(A)
+    d = QR\(b)
+    return d
+end
 
 function LM_D(nlp        :: AbstractNLSModel;
     fctDk          :: Function =  Andrei,
     x0             :: AbstractVector = nlp.meta.x0, 
     ϵₐ             :: AbstractFloat = 1e-8,
     ϵᵣ             :: AbstractFloat = 1e-8,
-    η₁             :: AbstractFloat = 1e-3, 
-    η₂             :: AbstractFloat = 0.66, 
+    η₁             :: AbstractFloat = 1e-4, 
+    η₂             :: AbstractFloat = 0.9, 
     σ₁             :: AbstractFloat = 10.0, 
     σ₂             :: AbstractFloat = 0.5,
     ApproxD        :: Bool = true,
@@ -62,20 +74,80 @@ function LM_D(nlp        :: AbstractNLSModel;
         )
 
     while !(optimal || tired)
-        ################# Calcul de d par factorisation QR #################
-        A = [Jx; (Dk + λ * I)^(1/2)]
-        b = [Fx; zeros(n)]
-        b .= -b
+        d = argmin_q(Fx, Jx, δk, Dk, λ, n)
+        
+    
+        xᵖ      = x + d
+        Fxᵖ     = residual(nlp, xᵖ)
+        fxᵖ     = 0.5* norm(Fxᵖ)^2
 
-        QR = qr(A)
-        d = QR\(b)
+        # fx = 0.5*normFx^2  --> FIN
 
-        ######################## Calcul du ratio ρ #########################
-        xp      = x + d
-        Fxp     = residual(nlp, xp)
-        normFxp = norm(Fxp)
+        test = false
+        while !test
+            qxᵖ = 0.5 * (norm(Jx * d + Fx)^2 - δk * d'*Dk*d)
+            qᵃxᵖ = 0.5 * (norm(Jx * d + Fx)^2 - (1-δk) * d'*Dk*d)
+            
+            ∇f  = fx - fxᵖ
+            ∇q  = fx - qxᵖ
+            ∇qᵃ = fx - qᵃxᵖ
 
-        ρ = (normFx^2 - normFxp^2) / (normFx^2 - norm(Jx * d + Fx)^2 - d'*Dk*d)
+            if ∇f/∇q > 1e-1
+                if ∇f ≤ (0.75*Fx'*Jx'*dᵖ)
+                    λ = λ/2
+                    xᵖꜝ = x + argmin_q(Fx, Jx, δk, Dk, λ, n)
+                    Fxᵖꜝ = residual(nlp, xᵖꜝ)
+                    fxᵖꜝ = (1/2)* norm(Fxᵖꜝ)^2
+                    if fxᵖꜝ > fxᵖ
+                        xˢ = xᵖ
+                        test = true
+                    else
+                        xᵖ      = xᵖꜝ
+                        Fxᵖ     = Fxᵖꜝ
+                        fxᵖ     = fxᵖꜝ
+                    end
+                else 
+                    xˢ = xᵖ
+                    test = true
+                end
+            elseif abs(fxᵖ - qxᵖ) > 1.5 * abs(fxᵖ - qᵃxᵖ)
+                xᵃ = x + argmin_q(Fx, Jx, 1-δk, Dk, λ, n)
+                Fxᵃ = residual(nlp, xᵃ)
+                fxᵃ = (1/2)* norm(Fxᵃ)^2
+                if fxᵃ < fxᵖ
+                    δk = 1-δk
+                    xᵖ = xᵃ
+                end
+            elseif ∇f/∇q < 1e-4
+                λ = 2*λ
+                d = argmin_q(Fx, Jx, δk, Dk, λ, n)
+                xᵖ = x + d
+                Fxᵖ = residual(nlp, xᵖ)
+                fxᵖ = (1/2)* norm(Fxᵖ)^2
+            else
+                xˢ = xᵖ
+                λ = 2*λ
+                test = true
+            end
+        end
+
+        ############### Stockage des anciennes valeurs ###############
+        x₋₁  = x
+        Jx₋₁ = Jx
+        
+        ######################## Mise à jour #########################
+        x = xˢ
+        Fx = residual(nlp, x)
+        Jx = jac_residual(nlp, x)
+        Gx = Jx' * Fx
+
+        ######################## Calcul de D #########################
+        yk₋₁ = Jx' * Fx - Jx₋₁' * Fx
+        sk₋₁ = x - x₋₁
+
+        if ApproxD
+            Dk = fctDk(Dk, sk₋₁, yk₋₁)
+        end
 
         if ρ < η₁
             λ = max(λ₀, σ₁ * λ)
@@ -83,13 +155,13 @@ function LM_D(nlp        :: AbstractNLSModel;
         else
             ############### Stockage des anciennes valeurs ###############
             x₋₁  = x
-            Fx₋₁ = Fx
+            #Fx₋₁ = Fx
             Jx₋₁ = Jx
-            φk₋₁ = Gx
+            #φk₋₁ = Gx
 
             ######################## Mise à jour #########################
-            x    = xp
-            Fx   = Fxp
+            x    = xᵖ
+            Fx   = Fxᵖ
             Jx   = jac_residual(nlp, x)
             Gx   = Jx' * Fx
             normFx   = norm(Fx)
