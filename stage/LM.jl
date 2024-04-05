@@ -32,12 +32,18 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
     ################ On évalue F(x₀) et J(x₀) ################
     x = copy(x0)
     Fx = residual(nlp, x)
-    #fx = 0.5* norm(Fx)^2
     Jx = jac_residual(nlp, x)
     Gx = Jx' * Fx
 
-    m,n = size(Jx)
+    normFx₀ = norm(Fx)
+    normGx₀ = norm(Gx)
+    normGx  = normGx₀
+    normFx  = normFx₀
 
+    fx = 0.5* normFx^2
+    
+
+    m,n = size(Jx)
     yk₋₁   = zeros(n)
     sk₋₁   = zeros(n)
     
@@ -46,12 +52,6 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
     else
         D = Diagonal(zeros(n))
     end
-
-    ################## On calcule leur norme #################
-    normFx₀ = norm(Fx)
-    normGx₀ = norm(Gx)
-    normGx  = normGx₀
-    normFx  = normFx₀
 
     iter = 0    
     λ = 0.0
@@ -87,25 +87,26 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
         qxᵖ = 0.5 * (norm(Jx * d + Fx)^2 - δ * d'*D*d)
         qᵃxᵖ = 0.5 * (norm(Jx * d + Fx)^2 - (1-δ) * d'*D*d)
 
+        @show δ * d'*D*d
+        @show (1-δ) * d'*D*d
+
         if abs(qxᵖ - fxᵖ) > 1.5 * abs(qᵃxᵖ - fxᵖ) 
             xᵃ = x + argmin_q(Fx, Jx, 1-δ, D, λ, n)
             Fxᵃ = residual(nlp, xᵃ)
             fxᵃ = (1/2)* norm(Fxᵃ)^2
             if fxᵃ < fxᵖ
                 δ = 1-δ
-                xᵖ = xᵃ
+                xᵖ  = xᵃ
+                Fxᵖ = Fxᵃ
+                fxᵖ = fxᵃ
+                qxᵖ = qᵃxᵖ
             end
         end
 
-
-
-
         ######################## Calcul du ratio ρ #########################
-        xp      = x + d
-        Fxp     = residual(nlp, xp)
-        normFxp = norm(Fxp)
+        
 
-        ρ = (normFx^2 - normFxp^2) / (normFx^2 - norm(Jx * d + Fx)^2 - d'*D*d)
+        ρ = (fx - fxᵖ) / (fx - qxᵖ)
 
         if ρ < η₁
             λ = max(λ₀, σ₁ * λ)
@@ -116,12 +117,13 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
             Jx₋₁ = Jx
 
             ######################## Mise à jour #########################
-            x    = xp
-            Fx   = Fxp
+            x    = xᵖ
+            Fx   = Fxᵖ
             Jx   = jac_residual(nlp, x)
             Gx   = Jx' * Fx
             normFx   = norm(Fx)
             normGx = norm(Gx)
+            fx = 0.5 * normFx^2
 
             ######################## Calcul de D #########################
             yk₋₁ = Jx' * Fx - Jx₋₁' * Fx
