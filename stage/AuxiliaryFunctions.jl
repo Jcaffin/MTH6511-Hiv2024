@@ -1,29 +1,27 @@
 using NLSProblems, JSOSolvers, SolverBenchmark, Plots
 
-function compare_solvers(k,
-    dict_solvers,
-    pb_sc;
+function compare_solvers(pb_sc,
+    dict_solvers;
     type :: String ="grad",
     save :: Bool = false)
 
     solvers_names = Dict(LM => "LM", LM_SPG => "LM_SPG", LM_Zhu => "LM_zhu", LM_Andrei => "LM_Andrei")
     solvers = collect(values(dict_solvers))
-    pb_test = pb_sc[k]
 
     for k = 1:length(solvers) 
         solver = solvers[k]
         name = solvers_names[solver]
 
-        stats, obj, grad = solver(pb_test; bool=true)
+        stats, obj, grad = solver(pb_sc; bool=true)
         to_plot = (type == "grad") ? grad : obj
         #y_label = (type == "grad") ? "‖JᵀF‖" : "‖F‖"
         rangs = 1:length(grad)
         if k == 1
-            plot(rangs, to_plot, xlabel="k", ylabel=type,yaxis =:log10, label=name, title="problème : "*pb_test.meta.name)
+            plot(rangs, to_plot, xlabel="k", ylabel=type,yaxis =:log10, label=name, title="problème : "*pb_sc.meta.name)
         else
             plot!(rangs, to_plot, label=name)
         end
-        reset!(pb_test)
+        reset!(pb_sc)
     end
     display(current())
     save && savefig("Pictures/Comparaison_new/"*type*"_"*pb_test.meta.name*".png")
