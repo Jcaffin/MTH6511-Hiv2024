@@ -17,7 +17,7 @@ function compare_solvers(pb_sc,
         #y_label = (type == "grad") ? "‖JᵀF‖" : "‖F‖"
         rangs = 1:length(grad)
         if k == 1
-            plot(rangs, to_plot, xlabel="k", ylabel=type,yaxis =:log10, label=name, title="problème : "*pb_test.meta.name)
+            plot(rangs, to_plot, xlabel="k", ylabel=type,yaxis =:log10, label=name, title="problème : "*pb_sc.meta.name)
         else
             plot!(rangs, to_plot, label=name)
         end

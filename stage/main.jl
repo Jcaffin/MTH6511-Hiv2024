@@ -6,6 +6,7 @@ include("AuxiliaryFunctions.jl")
 # DANS LES ARGUMENTS DE pp(), et le seul endroit ou elle va servir dans pp() c'est pour nommer le fichier .png
 
 dict_solvers = Dict(
+    # :LM_DonD => LM_DonD,
     :LM => LM,
     :LM_SPG => LM_SPG,
     :LM_Zhu => LM_Zhu,
@@ -21,7 +22,9 @@ problems = (eval((problem))() for problem ∈ problems_names)
 pb = collect(problems)
 pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
 
-# compare_solvers(pb_sc[8], dict_solvers; type = "grad", save = false)
+LM_Dalternative(pb_sc[8])
+
+#compare_solvers(pb_sc[8], dict_solvers; type = "grad", save = false)
 
 
 ######################## Profils de performance #########################
@@ -29,6 +32,8 @@ pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
 # pp(dict_solvers, problems; save = false)
 
 
-for k = 1:10
-    compare_solvers(k, dict_solvers, pb_sc; type = "grad", save = true)
-end
+####################### Générer tous les graphes ########################
+
+# for k = 1:10
+#     compare_solvers(k, dict_solvers, pb_sc; type = "grad", save = true)
+# end

@@ -13,7 +13,7 @@ function argmin_q(Fx, Jx, δk, Dk, λ, n)
     return d
 end
 
-function LM_D(nlp        :: AbstractNLSModel;
+function LM_Dalternative(nlp        :: AbstractNLSModel;
     fctDk          :: Function =  Andrei,
     x0             :: AbstractVector = nlp.meta.x0, 
     ϵₐ             :: AbstractFloat = 1e-8,
@@ -32,6 +32,7 @@ function LM_D(nlp        :: AbstractNLSModel;
     ################ On évalue F(x₀) et J(x₀) ################
     x = copy(x0)
     Fx = residual(nlp, x)
+    fx = 0.5* norm(Fx)^2
     Jx = jac_residual(nlp, x)
     Gx = Jx' * Fx
 
@@ -55,6 +56,7 @@ function LM_D(nlp        :: AbstractNLSModel;
     iter = 0    
     λ = 0.0
     λ₀ = 1e-6
+    δk = 0  # pas de GN au début
 
     iter_time = 0.0
     tired   = neval_residual(nlp) > max_eval || iter_time > max_time
@@ -81,15 +83,16 @@ function LM_D(nlp        :: AbstractNLSModel;
         Fxᵖ     = residual(nlp, xᵖ)
         fxᵖ     = 0.5* norm(Fxᵖ)^2
 
-        λᵖ = λ
-        δᵖ = δk
+        # λ = λ
+        # δk = δk
 
-        # fx = 0.5*normFx^2  --> FIN
+
 
         test = false
         while !test
-            qxᵖ = 0.5 * (norm(Jx * d + Fx)^2 - δk * d'*Dk*d)
-            qᵃxᵖ = 0.5 * (norm(Jx * d + Fx)^2 - (1-δk) * d'*Dk*d)
+            dᵖ = xᵖ - x
+            qxᵖ = 0.5 * (norm(Jx * dᵖ + Fx)^2 - δk * dᵖ'*Dk*dᵖ)
+            qᵃxᵖ = 0.5 * (norm(Jx * dᵖ + Fx)^2 - (1-δk) * dᵖ'*Dk*dᵖ)
             
             ∇f  = fx - fxᵖ
             ∇q  = fx - qxᵖ
@@ -97,8 +100,8 @@ function LM_D(nlp        :: AbstractNLSModel;
 
             if ∇f/∇q > 1e-1
                 if ∇f ≤ (0.75*Fx'*Jx'*d)
-                    λᵖ = λᵖ/2
-                    xᵖꜝ = x + argmin_q(Fx, Jx, δᵖ, Dk, λᵖ, n)
+                    λ = λ/2
+                    xᵖꜝ = x + argmin_q(Fx, Jx, δk, Dk, λ, n)
                     Fxᵖꜝ = residual(nlp, xᵖꜝ)
                     fxᵖꜝ = (1/2)* norm(Fxᵖꜝ)^2
                     if fxᵖꜝ > fxᵖ
@@ -113,30 +116,31 @@ function LM_D(nlp        :: AbstractNLSModel;
                     xˢ = xᵖ
                     test = true
                 end
-            elseif abs(fxᵖ - qxᵖ) > 1.5 * abs(fxᵖ - qᵃxᵖ)  # ON GARDE LE MODÈLE ACTUEL POUR xk+2
-                xᵃ = x + argmin_q(Fx, Jx, 1-δᵖ, Dk, λᵖ, n)
+            elseif abs(fxᵖ - qxᵖ) > 1.5 * abs(fxᵖ - qᵃxᵖ) 
+                xᵃ = x + argmin_q(Fx, Jx, 1-δk, Dk, λ, n)
                 Fxᵃ = residual(nlp, xᵃ)
                 fxᵃ = (1/2)* norm(Fxᵃ)^2
                 if fxᵃ < fxᵖ
-                    δᵖ = 1-δᵖ
+                    δk = 1-δk
                     xᵖ = xᵃ
                 end
             elseif ∇f/∇q < 1e-4
-                λᵖ = 2*λᵖ
-                d = argmin_q(Fx, Jx, δᵖ, Dk, λᵖ, n)
+                λ = 2*λ
+                d = argmin_q(Fx, Jx, δk, Dk, λ, n)
                 xᵖ = x + d
                 Fxᵖ = residual(nlp, xᵖ)
                 fxᵖ = (1/2)* norm(Fxᵖ)^2
             else
                 xˢ = xᵖ
-                λᵖ = 2*λᵖ
+                λ = 2*λ
                 test = true
             end
+            @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, status, norm(d), norm(Dk,Inf), λ])
         end
 
         ###################### Choix pour δ et λ #####################
-        δk = δᵖ   # ne sert à rien en l'état actuel des choses (suffit de remplacer tous les δᵖ par δk, mais dans l'article ils parlaient d'un "significantly better job")
-        λ  = λᵖ
+        # δk = δk
+        # λ  = λ
 
         ############### Stockage des anciennes valeurs ###############
         x₋₁  = x
@@ -261,7 +265,6 @@ function Andrei(D, s, y; ϵ = 0.01)
     end
     return D
 end 
-
 
 LM        = (nlp ; bool=false) -> LM_D(nlp; ApproxD = false, Disp_grad_obj = bool)
 LM_SPG    = (nlp ; bool=false) -> LM_D(nlp; fctDk = SPG    , Disp_grad_obj = bool)
