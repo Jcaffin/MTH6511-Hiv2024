@@ -69,10 +69,10 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
     gradient = [normGx]
 
     @info log_header(
-        [:iter, :nf, :obj, :grad, :status, :nd, :nD, :λ],
-        [Int, Int, Float64, Float64, String, Float64, Float64, Float64],
+        [:iter, :nf, :obj, :grad, :status, :nd, :nD, :λ, :δ],
+        [Int, Int, Float64, Float64, String, Float64, Float64, Float64, Int64],
         hdr_override=Dict(
-        :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :nd => "‖d‖", :nD => "‖D‖∞", :λ => "λ")
+        :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :nd => "‖d‖", :nD => "‖D‖∞", :λ => "λ", :δ => "δ")
         )
 
     while !(optimal || tired)
@@ -87,14 +87,12 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
         qxᵖ = 0.5 * (norm(Jx * d + Fx)^2 - δ * d'*D*d)
         qᵃxᵖ = 0.5 * (norm(Jx * d + Fx)^2 - (1-δ) * d'*D*d)
 
-        @show δ * d'*D*d
-        @show (1-δ) * d'*D*d
-
         if abs(qxᵖ - fxᵖ) > 1.5 * abs(qᵃxᵖ - fxᵖ) 
             xᵃ = x + argmin_q(Fx, Jx, 1-δ, D, λ, n)
             Fxᵃ = residual(nlp, xᵃ)
             fxᵃ = (1/2)* norm(Fxᵃ)^2
             if fxᵃ < fxᵖ
+                println(" YEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEES")
                 δ = 1-δ
                 xᵖ  = xᵃ
                 Fxᵖ = Fxᵃ
@@ -142,7 +140,7 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
         push!(objectif,normFx)
         push!(gradient, normGx)
 
-        @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, status, norm(d), norm(D,Inf), λ])
+        @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, status, norm(d), norm(D,Inf), λ, δ])
 
         iter_time    = time() - start_time
         iter        += 1

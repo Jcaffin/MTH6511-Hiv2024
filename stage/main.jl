@@ -21,8 +21,8 @@ problems = (eval((problem))() for problem ∈ problems_names)
 pb = collect(problems)
 pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
 
-LM_Dalternative(pb_sc[1])
-# compare_solvers(pb_sc[1], dict_solvers; type = "grad", save = false)
+
+compare_solvers(pb_sc[8], dict_solvers; type = "grad", save = false)
 
 
 ######################## Profils de performance #########################
