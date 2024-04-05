@@ -21,7 +21,7 @@ problems = (eval((problem))() for problem ∈ problems_names)
 pb = collect(problems)
 pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
 
-# compare_solvers(8, dict_solvers, pb_sc; type = "grad", save = false)
+# compare_solvers(pb_sc[8], dict_solvers; type = "grad", save = false)
 
 
 ######################## Profils de performance #########################

@@ -81,6 +81,9 @@ function LM_D(nlp        :: AbstractNLSModel;
         Fxᵖ     = residual(nlp, xᵖ)
         fxᵖ     = 0.5* norm(Fxᵖ)^2
 
+        λᵖ = λ
+        δᵖ = δk
+
         # fx = 0.5*normFx^2  --> FIN
 
         test = false
@@ -93,9 +96,9 @@ function LM_D(nlp        :: AbstractNLSModel;
             ∇qᵃ = fx - qᵃxᵖ
 
             if ∇f/∇q > 1e-1
-                if ∇f ≤ (0.75*Fx'*Jx'*dᵖ)
-                    λ = λ/2
-                    xᵖꜝ = x + argmin_q(Fx, Jx, δk, Dk, λ, n)
+                if ∇f ≤ (0.75*Fx'*Jx'*d)
+                    λᵖ = λᵖ/2
+                    xᵖꜝ = x + argmin_q(Fx, Jx, δᵖ, Dk, λᵖ, n)
                     Fxᵖꜝ = residual(nlp, xᵖꜝ)
                     fxᵖꜝ = (1/2)* norm(Fxᵖꜝ)^2
                     if fxᵖꜝ > fxᵖ
@@ -110,26 +113,30 @@ function LM_D(nlp        :: AbstractNLSModel;
                     xˢ = xᵖ
                     test = true
                 end
-            elseif abs(fxᵖ - qxᵖ) > 1.5 * abs(fxᵖ - qᵃxᵖ)
-                xᵃ = x + argmin_q(Fx, Jx, 1-δk, Dk, λ, n)
+            elseif abs(fxᵖ - qxᵖ) > 1.5 * abs(fxᵖ - qᵃxᵖ)  # ON GARDE LE MODÈLE ACTUEL POUR xk+2
+                xᵃ = x + argmin_q(Fx, Jx, 1-δᵖ, Dk, λᵖ, n)
                 Fxᵃ = residual(nlp, xᵃ)
                 fxᵃ = (1/2)* norm(Fxᵃ)^2
                 if fxᵃ < fxᵖ
-                    δk = 1-δk
+                    δᵖ = 1-δᵖ
                     xᵖ = xᵃ
                 end
             elseif ∇f/∇q < 1e-4
-                λ = 2*λ
-                d = argmin_q(Fx, Jx, δk, Dk, λ, n)
+                λᵖ = 2*λᵖ
+                d = argmin_q(Fx, Jx, δᵖ, Dk, λᵖ, n)
                 xᵖ = x + d
                 Fxᵖ = residual(nlp, xᵖ)
                 fxᵖ = (1/2)* norm(Fxᵖ)^2
             else
                 xˢ = xᵖ
-                λ = 2*λ
+                λᵖ = 2*λᵖ
                 test = true
             end
         end
+
+        ###################### Choix pour δ et λ #####################
+        δk = δᵖ   # ne sert à rien en l'état actuel des choses (suffit de remplacer tous les δᵖ par δk, mais dans l'article ils parlaient d'un "significantly better job")
+        λ  = λᵖ
 
         ############### Stockage des anciennes valeurs ###############
         x₋₁  = x
@@ -140,6 +147,8 @@ function LM_D(nlp        :: AbstractNLSModel;
         Fx = residual(nlp, x)
         Jx = jac_residual(nlp, x)
         Gx = Jx' * Fx
+        normFx   = norm(Fx)
+        normGx = norm(Gx)
 
         ######################## Calcul de D #########################
         yk₋₁ = Jx' * Fx - Jx₋₁' * Fx
@@ -149,39 +158,7 @@ function LM_D(nlp        :: AbstractNLSModel;
             Dk = fctDk(Dk, sk₋₁, yk₋₁)
         end
 
-        if ρ < η₁
-            λ = max(λ₀, σ₁ * λ)
-            status = :increase_λ
-        else
-            ############### Stockage des anciennes valeurs ###############
-            x₋₁  = x
-            #Fx₋₁ = Fx
-            Jx₋₁ = Jx
-            #φk₋₁ = Gx
-
-            ######################## Mise à jour #########################
-            x    = xᵖ
-            Fx   = Fxᵖ
-            Jx   = jac_residual(nlp, x)
-            Gx   = Jx' * Fx
-            normFx   = norm(Fx)
-            normGx = norm(Gx)
-
-            ######################## Calcul de D #########################
-            # yk₋₁ = Jx' * Fx₋₁ - φk₋₁
-            yk₋₁ = Jx' * Fx - Jx₋₁' * Fx
-            sk₋₁ = x - x₋₁
-
-            if ApproxD
-                Dk = fctDk(Dk, sk₋₁, yk₋₁)
-            end
-
-            status = :success    
-            if ρ ≥ η₂
-                λ = σ₂ * λ
-            end
-        end
-
+        #############################################################
         push!(objectif,normFx)
         push!(gradient, normGx)
 
