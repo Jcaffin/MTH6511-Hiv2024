@@ -5,7 +5,7 @@ function compare_solvers(pb_sc,
     type :: String ="grad",
     save :: Bool = false)
 
-    solvers_names = Dict(LM => "LM", LM_SPG => "LM_SPG", LM_Zhu => "LM_zhu", LM_Andrei => "LM_Andrei")
+    solvers_names = Dict(LM => "LM", LM_SPG => "LM_SPG", LM_Zhu => "LM_zhu", LM_Andrei => "LM_Andrei", LM_SPG_alt => "LM_SPG_alt", LM_Zhu_alt => "LM_Zhu_alt", LM_Andrei_alt => "LM_Andrei_alt" )
     solvers = collect(values(dict_solvers))
 
     for k = 1:length(solvers) 
@@ -24,7 +24,7 @@ function compare_solvers(pb_sc,
         reset!(pb_sc)
     end
     display(current())
-    save && savefig("Pictures/Comparaison_new/"*type*"_"*pb_test.meta.name*".png")
+    save && savefig("Pictures/Comparaison/"*type*"_"*pb_sc.meta.name*".png")
 end
 
 
