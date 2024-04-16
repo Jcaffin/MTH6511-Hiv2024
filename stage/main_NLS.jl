@@ -1,3 +1,5 @@
+using NLSProblems
+
 include("LM.jl")
 include("AuxiliaryFunctions.jl")
 
@@ -8,10 +10,10 @@ include("AuxiliaryFunctions.jl")
 dict_solvers = Dict(
     :LM => LM,
     :LM_SPG => LM_SPG,
-   # :LM_Zhu => LM_Zhu,
+    #:LM_Zhu => LM_Zhu,
     :LM_Andrei => LM_Andrei,
     :LM_SPG_alt => LM_SPG_alt,
-   # :LM_Zhu_alt => LM_Zhu_alt,
+    #:LM_Zhu_alt => LM_Zhu_alt,
     :LM_Andrei_alt => LM_Andrei_alt
     )
 
@@ -24,7 +26,7 @@ problems = (eval((problem))() for problem ∈ problems_names)
 pb = collect(problems)
 pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
 
-compare_solvers(pb_sc[8], dict_solvers; type = "grad", save = false)
+compare_solvers(pb_sc[7], dict_solvers; type = "grad", save = false)
 
 ######################## Profils de performance #########################
 
@@ -34,6 +36,6 @@ compare_solvers(pb_sc[8], dict_solvers; type = "grad", save = false)
 
 ####################### Générer tous les graphes ########################
 
-for k =1:length(pb_sc)
-    compare_solvers(pb_sc[k], dict_solvers; type = "grad", save = true)
-end
+# for k =1:length(pb_sc)
+#     compare_solvers(pb_sc[k], dict_solvers; type = "grad", save = true)
+# end

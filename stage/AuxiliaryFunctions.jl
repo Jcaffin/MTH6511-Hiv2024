@@ -1,4 +1,4 @@
-using NLSProblems, JSOSolvers, SolverBenchmark, Plots
+using JSOSolvers, SolverBenchmark, Plots
 
 function compare_solvers(pb_sc,
     dict_solvers;
@@ -14,7 +14,6 @@ function compare_solvers(pb_sc,
 
         stats, obj, grad = solver(pb_sc; bool=true)
         to_plot = (type == "grad") ? grad : obj
-        #y_label = (type == "grad") ? "‖JᵀF‖" : "‖F‖"
         rangs = 1:length(grad)
         if k == 1
             plot(rangs, to_plot, xlabel="k", ylabel=type,yaxis =:log10, label=name, title="problème : "*pb_sc.meta.name)

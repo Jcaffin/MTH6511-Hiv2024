@@ -1,13 +1,13 @@
 using LinearAlgebra, NLPModels, Printf, Logging, SolverCore, Test, ADNLPModels
 
-function argmin_q(Fx, Jx, δ, D, λ, n)
+function argmin_q(Fx, Jx, λ, n, D; δ=0)
     if δ == 0
-        A = [Jx; (D + λ * I)^(1/2)]
+        A = [Jx; sqrt(λ * I(n))]
     else
-        A = [Jx; (λ * I)^(1/2)]
+        A = [Jx; sqrt(D + λ * I(n))]
     end
     b = [Fx; zeros(n)]
-    b .= -b
+    b .*= -1
     QR = qr(A)
     d = QR\(b)
     return d
@@ -30,16 +30,21 @@ function LM_D(nlp        :: AbstractNLSModel;
     )
 
     ################ On évalue F(x₀) et J(x₀) ################
-    x = copy(x0)
-    Fx = residual(nlp, x)
-    Jx = jac_residual(nlp, x)
-    Gx = Jx' * Fx
+    x   = copy(x0)
+    xᵖ  = similar(x)
+    x₋₁ = similar(x)
+    Fx  = residual(nlp, x)
+    Fxᵖ = similar(Fx)
+    Jx  = jac_residual(nlp, x)
+    Jx₋₁= similar(Jx)
+    Gx  = Jx' * Fx
 
     m,n = size(Jx)
 
     yk₋₁   = zeros(n)
     sk₋₁   = zeros(n)
     
+    local D
     if ApproxD
         D = Diagonal(ones(n))
     else
@@ -75,42 +80,36 @@ function LM_D(nlp        :: AbstractNLSModel;
 
     while !(optimal || tired)
         ################# Calcul de d par factorisation QR #################
-        A = [Jx; (D + λ * I)^(1/2)]
-        b = [Fx; zeros(n)]
-        b .= -b
-
-        QR = qr(A)
-        d = QR\(b)
+        d = argmin_q(Fx, Jx, λ, n, D)
 
         ######################## Calcul du ratio ρ #########################
-        xp      = x + d
-        Fxp     = residual(nlp, xp)
-        normFxp = norm(Fxp)
+        xᵖ     .= x .+ d
+        residual!(nlp, xᵖ,Fxᵖ)
+        normFxᵖ = norm(Fxᵖ)
 
-        ρ = (normFx^2 - normFxp^2) / (normFx^2 - norm(Jx * d + Fx)^2 - d'*D*d)
+        ρ = (normFx^2 - normFxᵖ^2) / (normFx^2 - norm(Jx * d + Fx)^2 - d'*D*d)
 
         if ρ < η₁
             λ = max(λ₀, σ₁ * λ)
             status = :increase_λ
         else
             ############### Stockage des anciennes valeurs ###############
-            x₋₁  = x
-            Fx₋₁ = Fx
-            Jx₋₁ = Jx
-            φk₋₁ = Gx
+            x₋₁  .= x
+            Jx₋₁ .= Jx
 
             ######################## Mise à jour #########################
-            x    = xp
-            Fx   = Fxp
+            x    .= xᵖ
+            Fx   .= Fxᵖ
             Jx   = jac_residual(nlp, x)
-            Gx   = Jx' * Fx
+            mul!(Gx,Jx',Fx)
             normFx   = norm(Fx)
             normGx = norm(Gx)
 
             ######################## Calcul de D #########################
-            # yk₋₁ = Jx' * Fx₋₁ - φk₋₁
-            yk₋₁ = Jx' * Fx - Jx₋₁' * Fx
-            sk₋₁ = x - x₋₁
+            #yk₋₁ = Jx' * Fx - Jx₋₁' * Fx
+            mul!(yk₋₁,Jx',Fx)
+            mul!(yk₋₁,Jx₋₁',Fx,-1,1)
+            sk₋₁ .= x .- x₋₁
 
             if ApproxD
                 D = fctD(D, sk₋₁, yk₋₁)
@@ -191,10 +190,17 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
     )
 
     ################ On évalue F(x₀) et J(x₀) ################
-    x = copy(x0)
-    Fx = residual(nlp, x)
-    Jx = jac_residual(nlp, x)
-    Gx = Jx' * Fx
+
+    x   = copy(x0)
+    xᵖ  = similar(x)
+    x₋₁ = similar(x)
+    xᵃ  = similar(x)
+    Fx  = residual(nlp, x)
+    Fxᵖ = similar(Fx)
+    Fxᵃ = similar(Fx)
+    Jx  = jac_residual(nlp, x)
+    Jx₋₁= similar(Jx)
+    Gx  = Jx' * Fx
 
     normFx₀ = norm(Fx)
     normGx₀ = norm(Gx)
@@ -215,9 +221,9 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
     end
 
     iter = 0    
-    λ = 0.0
-    λ₀ = 1e-6
-    δ = 0
+    λ    = 0.0
+    λ₀   = 1e-6
+    δ    = 0
 
     iter_time = 0.0
     tired   = neval_residual(nlp) > max_eval || iter_time > max_time
@@ -239,25 +245,28 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
     while !(optimal || tired)
 
         ########################### Calcul de xᵖ ###########################
-        d = argmin_q(Fx, Jx, δ, D, λ, n)
+        d = argmin_q(Fx, Jx, λ, n, D; δ = δ)
         
-        xᵖ      = x + d
-        Fxᵖ     = residual(nlp, xᵖ)
+        xᵖ     .= x .+ d
+        residual!(nlp, xᵖ, Fxᵖ)
         fxᵖ     = 0.5* norm(Fxᵖ)^2
 
-        qxᵖ = 0.5 * (norm(Jx * d + Fx)^2 - δ * d'*D*d)
-        qᵃxᵖ = 0.5 * (norm(Jx * d + Fx)^2 - (1-δ) * d'*D*d)
+        # valeur absolue d'une composante de Jx * d + Fx pour le test composante par composante
+        # Jx * d + Fx à précalculer
+        # d'*D*d à précalculer
+        qxᵖ = 0.5 * (norm(Jx * d + Fx)^2 + δ * d'*D*d)
+        qᵃxᵖ = 0.5 * (norm(Jx * d + Fx)^2 + (1-δ) * d'*D*d)
 
         if abs(qxᵖ - fxᵖ) > 1.5 * abs(qᵃxᵖ - fxᵖ) 
-            xᵃ = x + argmin_q(Fx, Jx, 1-δ, D, λ, n)
-            Fxᵃ = residual(nlp, xᵃ)
+            xᵃ .= x .+ argmin_q(Fx, Jx, λ, n, D; δ = 1-δ)
+            residual!(nlp, xᵃ, Fxᵃ)
             fxᵃ = (1/2)* norm(Fxᵃ)^2
             if fxᵃ < fxᵖ
                 δ = 1-δ
-                xᵖ  = xᵃ
-                Fxᵖ = Fxᵃ
-                fxᵖ = fxᵃ
-                qxᵖ = qᵃxᵖ
+                xᵖ  .= xᵃ
+                Fxᵖ .= Fxᵃ
+                fxᵖ  = fxᵃ
+                qxᵖ  = qᵃxᵖ
             end
         end
 
@@ -271,21 +280,22 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
             status = :increase_λ
         else
             ############### Stockage des anciennes valeurs ###############
-            x₋₁  = x
-            Jx₋₁ = Jx
+            x₋₁  .= x
+            Jx₋₁ .= Jx
 
             ######################## Mise à jour #########################
-            x    = xᵖ
-            Fx   = Fxᵖ
-            Jx   = jac_residual(nlp, x)
-            Gx   = Jx' * Fx
-            normFx   = norm(Fx)
-            normGx = norm(Gx)
-            fx = 0.5 * normFx^2
+            x    .= xᵖ
+            Fx   .= Fxᵖ
+            Jx    = jac_residual(nlp, x)
+            mul!(Gx, Jx', Fx)
+            normFx  = norm(Fx)
+            normGx  = norm(Gx)
+            fx      = 0.5 * normFx^2
 
             ######################## Calcul de D #########################
-            yk₋₁ = Jx' * Fx - Jx₋₁' * Fx
-            sk₋₁ = x - x₋₁
+            mul!(yk₋₁,Jx',Fx)
+            mul!(yk₋₁,Jx₋₁',Fx,-1,1)
+            sk₋₁ .= x .- x₋₁
 
             if ApproxD
                 D = fctD(D, sk₋₁, yk₋₁)
@@ -406,5 +416,5 @@ LM_SPG        = (nlp ; bool=false) -> LM_D(nlp; fctD = SPG    , Disp_grad_obj = 
 LM_Zhu        = (nlp ; bool=false) -> LM_D(nlp; fctD = Zhu    , Disp_grad_obj = bool)
 LM_Andrei     = (nlp ; bool=false) -> LM_D(nlp; fctD = Andrei , Disp_grad_obj = bool)
 LM_SPG_alt    = (nlp ; bool=false) -> LM_Dalternative(nlp; fctD = SPG    , Disp_grad_obj = bool)
-LM_Zhu_alt   = (nlp ; bool=false) -> LM_Dalternative(nlp; fctD = Zhu    , Disp_grad_obj = bool)
+LM_Zhu_alt    = (nlp ; bool=false) -> LM_Dalternative(nlp; fctD = Zhu    , Disp_grad_obj = bool)
 LM_Andrei_alt = (nlp ; bool=false) -> LM_Dalternative(nlp; fctD = Andrei , Disp_grad_obj = bool)
