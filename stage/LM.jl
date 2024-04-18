@@ -1,5 +1,15 @@
 using LinearAlgebra, NLPModels, Printf, Logging, SolverCore, Test, ADNLPModels
 
+function maj_J(Jx, rows, cols, vals)
+    for k = 1:length(rows)
+        i = rows[k]
+        j = cols[k]
+        Jx[i,j] = vals[k]
+    end
+    return Jx
+end
+
+
 function argmin_q(Fx, Jx, λ, n, D; δ=0)
     if δ == 0
         A = [Jx; sqrt(λ * I(n))]
@@ -35,7 +45,9 @@ function LM_D(nlp  :: AbstractNLSModel;
     x₋₁ = similar(x)
     Fx  = residual(nlp, x)
     Fxᵖ = similar(Fx)
-    Jx  = jac_residual(nlp, x)
+    rows, cols = jac_structure(nlp)
+    vals       = jac_coord(nlp, x)
+    Jx         = sparse(rows, cols, vals)
     Jx₋₁= similar(Jx)
     Gx  = Jx' * Fx
 
@@ -100,7 +112,8 @@ function LM_D(nlp  :: AbstractNLSModel;
             ######################## Mise à jour #########################
             x    .= xᵖ
             Fx   .= Fxᵖ
-            Jx   = jac_residual(nlp, x)
+            jac_coord!(nlp, x, vals)
+            Jx   .= maj_J(Jx, rows, cols, vals)
             mul!(Gx,Jx',Fx)
             normFx   = norm(Fx)
             normGx = norm(Gx)
