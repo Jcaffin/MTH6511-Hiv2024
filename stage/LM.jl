@@ -13,8 +13,8 @@ function argmin_q(Fx, Jx, λ, n, D; δ=0)
     return d
 end
 
-function LM_D(nlp        :: AbstractNLSModel;
-    fctD          :: Function =  Andrei,
+function LM_D(nlp  :: AbstractNLSModel;
+    fctD           :: Function =  Andrei,
     x0             :: AbstractVector = nlp.meta.x0, 
     ϵₐ             :: AbstractFloat = 1e-8,
     ϵᵣ             :: AbstractFloat = 1e-8,

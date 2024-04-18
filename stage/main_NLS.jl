@@ -25,8 +25,8 @@ problems = (eval((problem))() for problem ∈ problems_names)
 
 pb = collect(problems)
 pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
-
-compare_solvers(pb_sc[7], dict_solvers; type = "grad", save = false)
+@show typeof(jac_residual(pb_sc[7],pb_sc[7].meta.x0))
+compare_solvers(pb_sc[8], dict_solvers; type = "grad", save = false)
 
 ######################## Profils de performance #########################
 
