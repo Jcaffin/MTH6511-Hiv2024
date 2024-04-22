@@ -34,8 +34,8 @@ function LM_D(nlp  :: AbstractNLSModel;
     σ₂             :: AbstractFloat = 0.5,
     ApproxD        :: Bool = true,
     Disp_grad_obj  :: Bool = false,
-    max_eval       :: Int = 1000, 
-    max_time       :: AbstractFloat = 60.,
+    max_eval       :: Int = 100000, 
+    max_time       :: AbstractFloat = 720.,
     max_iter       :: Int = typemax(Int64)
     )
 
@@ -45,11 +45,11 @@ function LM_D(nlp  :: AbstractNLSModel;
     x₋₁ = similar(x)
     Fx  = residual(nlp, x)
     Fxᵖ = similar(Fx)
-    rows, cols = jac_structure(nlp)
-    vals       = jac_coord(nlp, x)
+    rows, cols = jac_structure_residual(nlp)
+    vals       = jac_coord_residual(nlp, x)
     Jx         = sparse(rows, cols, vals)
-    Jx₋₁= similar(Jx)
-    Gx  = Jx' * Fx
+    Jx₋₁       = similar(Jx)
+    Gx         = Jx' * Fx
 
     m,n = size(Jx)
 
@@ -112,14 +112,13 @@ function LM_D(nlp  :: AbstractNLSModel;
             ######################## Mise à jour #########################
             x    .= xᵖ
             Fx   .= Fxᵖ
-            jac_coord!(nlp, x, vals)
+            jac_coord_residual!(nlp, x, vals)
             Jx   .= maj_J(Jx, rows, cols, vals)
             mul!(Gx,Jx',Fx)
             normFx   = norm(Fx)
             normGx = norm(Gx)
 
             ######################## Calcul de D #########################
-            #yk₋₁ = Jx' * Fx - Jx₋₁' * Fx
             mul!(yk₋₁,Jx',Fx)
             mul!(yk₋₁,Jx₋₁',Fx,-1,1)
             sk₋₁ .= x .- x₋₁
@@ -198,9 +197,9 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
     σ₂             :: AbstractFloat = 0.5,
     ApproxD        :: Bool = true,
     Disp_grad_obj  :: Bool = false,
-    max_eval       :: Int = 1000, 
+    max_eval       :: Int  = 1000, 
     max_time       :: AbstractFloat = 60.,
-    max_iter       :: Int = typemax(Int64)
+    max_iter       :: Int  = typemax(Int64)
     )
 
     ################ On évalue F(x₀) et J(x₀) ################
@@ -268,7 +267,7 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
         # valeur absolue d'une composante de Jx * d + Fx pour le test composante par composante
         # Jx * d + Fx à précalculer
         # d'*D*d à précalculer
-        qxᵖ = 0.5 * (norm(Jx * d + Fx)^2 + δ * d'*D*d)
+        qxᵖ  = 0.5 * (norm(Jx * d + Fx)^2 + δ * d'*D*d)
         qᵃxᵖ = 0.5 * (norm(Jx * d + Fx)^2 + (1-δ) * d'*D*d)
 
         if abs(qxᵖ - fxᵖ) > 1.5 * abs(qᵃxᵖ - fxᵖ) 

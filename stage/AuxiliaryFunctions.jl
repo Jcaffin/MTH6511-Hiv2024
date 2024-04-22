@@ -23,7 +23,7 @@ function compare_solvers(pb_sc,
         reset!(pb_sc)
     end
     display(current())
-    save && savefig("Pictures/Comparaison/"*type*"_"*pb_sc.meta.name*".png")
+    save && savefig("Pictures/Comparaison/"*type*"_"*pb_sc.meta.name*".svg")
 end
 
 
