@@ -34,8 +34,8 @@ function LM_D(nlp  :: AbstractNLSModel;
     σ₂             :: AbstractFloat = 0.5,
     ApproxD        :: Bool = true,
     Disp_grad_obj  :: Bool = false,
-    max_eval       :: Int = 100000, 
-    max_time       :: AbstractFloat = 720.,
+    max_eval       :: Int = 1000, 
+    max_time       :: AbstractFloat = 60.,
     max_iter       :: Int = typemax(Int64)
     )
 
@@ -45,11 +45,12 @@ function LM_D(nlp  :: AbstractNLSModel;
     x₋₁ = similar(x)
     Fx  = residual(nlp, x)
     Fxᵖ = similar(Fx)
-    rows, cols = jac_structure_residual(nlp)
-    vals       = jac_coord_residual(nlp, x)
-    Jx         = sparse(rows, cols, vals)
-    Jx₋₁       = similar(Jx)
-    Gx         = Jx' * Fx
+    # rows, cols = jac_structure_residual(nlp)
+    # vals       = jac_coord_residual(nlp, x)
+    # Jx         = sparse(rows, cols, vals)
+    Jx    = jac_residual(nlp, x)
+    Jx₋₁  = similar(Jx)
+    Gx    = Jx' * Fx
 
     m,n = size(Jx)
 
@@ -112,8 +113,9 @@ function LM_D(nlp  :: AbstractNLSModel;
             ######################## Mise à jour #########################
             x    .= xᵖ
             Fx   .= Fxᵖ
-            jac_coord_residual!(nlp, x, vals)
-            Jx   .= maj_J(Jx, rows, cols, vals)
+            # jac_coord_residual!(nlp, x, vals)
+            # Jx   .= maj_J(Jx, rows, cols, vals)
+            Jx    = jac_residual(nlp, x)
             mul!(Gx,Jx',Fx)
             normFx   = norm(Fx)
             normGx = norm(Gx)

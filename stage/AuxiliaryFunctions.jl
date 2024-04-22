@@ -23,7 +23,7 @@ function compare_solvers(pb_sc,
         reset!(pb_sc)
     end
     display(current())
-    save && savefig("Pictures/Comparaison/"*type*"_"*pb_sc.meta.name*".svg")
+    save && savefig("Pictures/Comparaison/"*pb_sc.meta.name*"_"*type*".svg")
 end
 
 
@@ -41,5 +41,5 @@ function pp(dict_solvers,
     cost(df) = (df.status .!= :first_order) * Inf + df.iter
     performance_profile(stats, cost)
     display(current())
-    save && savefig("Pictures/Performance_profiles/LMD_SPG_Zhu_Andrei.png")
+    save && savefig("Pictures/Performance_profiles/LMD_SPG_Zhu_Andrei.svg")
 end
