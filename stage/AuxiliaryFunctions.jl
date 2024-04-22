@@ -33,14 +33,13 @@ function pp(dict_solvers,
     )
 
     stats = bmark_solvers(dict_solvers, problems, skipif = problem -> (problem.meta.ncon == 0) ? false : true)
-    #stats = bmark_solvers(dict_solv, problems)
 
     cols = [:name, :status, :objective, :elapsed_time, :iter]
-    for solver ∈ keys(solvers)
+    for solver ∈ keys(dict_solvers)
         pretty_stats(stats[solver][!, cols])
     end
     cost(df) = (df.status .!= :first_order) * Inf + df.iter
     performance_profile(stats, cost)
     display(current())
-    save && savefig("Pictures/Performance_profiles/η.png")
+    save && savefig("Pictures/Performance_profiles/LMD_SPG_Zhu_Andrei.png")
 end

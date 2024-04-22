@@ -9,11 +9,11 @@ include("AuxiliaryFunctions.jl")
 dict_solvers = Dict(
     :LM => LM,
     :LM_SPG => LM_SPG,
-    #:LM_Zhu => LM_Zhu,
-    :LM_Andrei => LM_Andrei,
-    :LM_SPG_alt => LM_SPG_alt,
+    :LM_Zhu => LM_Zhu,
+    :LM_Andrei => LM_Andrei
+    #:LM_SPG_alt => LM_SPG_alt,
     #:LM_Zhu_alt => LM_Zhu_alt,
-    :LM_Andrei_alt => LM_Andrei_alt
+    #:LM_Andrei_alt => LM_Andrei_alt
     )
 
     
@@ -26,11 +26,22 @@ problems = (eval((problem))() for problem ∈ problems_names)
 pb = collect(problems)
 pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
 
-compare_solvers(pb_sc[8], dict_solvers; type = "grad", save = false)
+################################# Tests ##################################
+# nlp = pb_sc[8]
+# x  = nlp.meta.x0
+# rows, cols = jac_structure_residual(nlp)
+# vals = jac_coord_residual(nlp, x)
+# Jx_sparse = sparse(rows, cols, vals)
+# Jx_full = jac_residual(nlp, x)
+
+
+###################### Test sur un problème unique #######################
+
+compare_solvers(pb_sc[8], dict_solvers; type = "grad", save = true)
 
 ######################## Profils de performance #########################
 
-# pp(dict_solvers, problems; save = false)
+# pp(dict_solvers, problems; save = true)
 
 
 
