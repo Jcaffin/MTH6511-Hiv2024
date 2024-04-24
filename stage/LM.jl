@@ -1,4 +1,4 @@
-using LinearAlgebra, NLPModels, Printf, Logging, SolverCore, Test, ADNLPModels, SparseArrays
+using LinearAlgebra, NLPModels, Printf, Logging, SolverCore, Test, ADNLPModels, SparseArrays, QRMumps
 
 function maj_J(Jx, rows, cols, vals)
     for k = 1:length(rows)
@@ -165,8 +165,7 @@ function LM_D(nlp  :: AbstractNLSModel;
         else
         :unknown
         end
-    # @show status
-    # @show time() - start_time
+
     if Disp_grad_obj
         return GenericExecutionStats(nlp; 
             status, 

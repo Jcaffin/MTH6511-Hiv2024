@@ -19,12 +19,9 @@ dict_solvers = Dict(
     
 problems_names = setdiff(names(NLSProblems), [:NLSProblems])
 problems = (eval((problem))() for problem ∈ problems_names)
-
-
-###################### Test sur un problème unique #######################
-
 pb = collect(problems)
-pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
+#pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
+pb_sc = filter(problem -> problem.meta.name == "mgh05", pb)
 
 ################################# Tests ##################################
 # nlp = pb_sc[8]
@@ -37,7 +34,7 @@ pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
 
 ###################### Test sur un problème unique #######################
 
-# compare_solvers(pb_sc[8], dict_solvers; type = "grad", save = true)
+compare_solvers(pb_sc[1], dict_solvers; type = "obj", save = false)
 
 ######################## Profils de performance #########################
 
@@ -47,6 +44,6 @@ pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
 
 ####################### Générer tous les graphes ########################
 
-for k =1:length(pb_sc)
-    compare_solvers(pb_sc[k], dict_solvers; type = "obj", save = true)
-end
+# for k =1:length(pb_sc)
+#     compare_solvers(pb_sc[k], dict_solvers; type = "obj", save = true)
+# end
