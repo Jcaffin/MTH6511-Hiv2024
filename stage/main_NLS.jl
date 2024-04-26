@@ -20,8 +20,8 @@ dict_solvers = Dict(
 problems_names = setdiff(names(NLSProblems), [:NLSProblems])
 problems = (eval((problem))() for problem ∈ problems_names)
 pb = collect(problems)
-#pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
-pb_sc = filter(problem -> problem.meta.name == "mgh05", pb)
+pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
+#pb_sc = filter(problem -> problem.meta.nvar == 2, pb)
 
 ################################# Tests ##################################
 # nlp = pb_sc[8]

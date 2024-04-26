@@ -10,6 +10,17 @@ function maj_J(Jx, rows, cols, vals)
 end
 
 
+
+function is_quasi_lin(Fxi, Fx₋₁i, Jx₋₁i, d; τ₁ = 0.01)
+    quasi_lin = abs(Fxi - (Fx₋₁i + Jx₋₁i'*d))/(1+abs(Fxi)) < τ₁ ? true : false
+    return quasi_lin
+end
+
+function is_quasi_nul(Fxi, Fx₋₁i; τ₂ = 0.01, τ₃ = 0.01)
+    quasi_nul = abs(Fxi) < τ₂ * abs(Fx₋₁i) + τ₃ ? true : false
+    return quasi_nul
+end
+
 function argmin_q(Fx, Jx, λ, n, D; δ=0)
     if δ == 0
         A = [Jx; sqrt(λ * I(n))]
@@ -45,6 +56,8 @@ function LM_D(nlp  :: AbstractNLSModel;
     x₋₁ = similar(x)
     Fx  = residual(nlp, x)
     Fxᵖ = similar(Fx)
+    r   = similar(Fx)
+    Fx₋₁ = similar(Fx)
     # rows, cols = jac_structure_residual(nlp)
     # vals       = jac_coord_residual(nlp, x)
     # Jx         = sparse(rows, cols, vals)
@@ -109,6 +122,7 @@ function LM_D(nlp  :: AbstractNLSModel;
             ############### Stockage des anciennes valeurs ###############
             x₋₁  .= x
             Jx₋₁ .= Jx
+            Fx₋₁ .= Fx
 
             ######################## Mise à jour #########################
             x    .= xᵖ
@@ -121,14 +135,25 @@ function LM_D(nlp  :: AbstractNLSModel;
             normGx = norm(Gx)
 
             ######################## Calcul de D #########################
-            mul!(yk₋₁,Jx',Fx)
-            mul!(yk₋₁,Jx₋₁',Fx,-1,1)
+
+            
+            for i = 1:length(Fx)
+                quasi_lin = is_quasi_lin(Fx[i], Fx₋₁[i], Jx₋₁[i,:], d)
+                quasi_nul = is_quasi_nul(Fx[i], Fx₋₁[i])
+                if quasi_lin || quasi_nul
+                    r[i] = 0
+                else
+                    r[i] = Fx[i]
+                end
+            end
+            mul!(yk₋₁,Jx',r)
+            mul!(yk₋₁,Jx₋₁',r,-1,1)
             sk₋₁ .= x .- x₋₁
 
             if ApproxD
                 D = fctD(D, sk₋₁, yk₋₁)
             end
-
+            
             status = :success    
             if ρ ≥ η₂
                 λ = σ₂ * λ
@@ -212,6 +237,8 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
     Fx  = residual(nlp, x)
     Fxᵖ = similar(Fx)
     Fxᵃ = similar(Fx)
+    r   = similar(Fx)
+    Fx₋₁ = similar(Fx)
     Jx  = jac_residual(nlp, x)
     Jx₋₁= similar(Jx)
     Gx  = Jx' * Fx
@@ -307,8 +334,17 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
             fx      = 0.5 * normFx^2
 
             ######################## Calcul de D #########################
-            mul!(yk₋₁,Jx',Fx)
-            mul!(yk₋₁,Jx₋₁',Fx,-1,1)
+            for i = 1:length(Fx)
+                quasi_lin = is_quasi_lin(Fx[i], Fx₋₁[i], Jx₋₁[i,:], d)
+                quasi_nul = is_quasi_nul(Fx[i], Fx₋₁[i])
+                if quasi_lin || quasi_nul
+                    r[i] = 0
+                else
+                    r[i] = Fx[i]
+                end
+            end
+            mul!(yk₋₁,Jx',r)
+            mul!(yk₋₁,Jx₋₁',r,-1,1)
             sk₋₁ .= x .- x₋₁
 
             if ApproxD
@@ -377,15 +413,14 @@ function SPG(D, s, y; ϵ = 0.01)
     n   = size(D,1)
     sty = s' * y
     ss  = s' * s
-    if sty > ϵ
+    non_nul = sty > ϵ ? true : false
+    if non_nul
         σ  = sty /ss
         for i = 1:n
             D[i,i]  = σ
         end
-        return D
-    else
-        return D
     end
+    return D
 end
 
 function Zhu(D, s, y; ϵ = 0.01)
