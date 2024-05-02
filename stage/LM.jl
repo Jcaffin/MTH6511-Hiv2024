@@ -1,15 +1,13 @@
 using LinearAlgebra, NLPModels, Printf, Logging, SolverCore, Test, ADNLPModels, SparseArrays, QRMumps
 
 function maj_J(Jx, rows, cols, vals)
-    for k = 1:length(rows)
+    for k = 1:lastindex(rows)
         i = rows[k]
         j = cols[k]
         Jx[i,j] = vals[k]
     end
     return Jx
 end
-
-
 
 function is_quasi_lin(Fxi, Fx₋₁i, Jx₋₁i, d; τ₁ = 0.01)
     quasi_lin = abs(Fxi - (Fx₋₁i + Jx₋₁i'*d))/(1+abs(Fxi)) < τ₁ ? true : false
@@ -29,10 +27,14 @@ function argmin_q(Fx, Jx, λ, n, D; δ=0)
     end
     b = [Fx; zeros(n)]
     b .*= -1
+    # qrm_init()
+    # spmat = qrm_spmat_init(A)
+    # x = qrm_least_squares(spmat, b)
     QR = qr(A)
-    d = QR\(b)
-    return d
+    x = QR\(b)
+    return x
 end
+
 
 function LM_D(nlp  :: AbstractNLSModel;
     fctD           :: Function =  Andrei,
@@ -40,9 +42,9 @@ function LM_D(nlp  :: AbstractNLSModel;
     ϵₐ             :: AbstractFloat = 1e-8,
     ϵᵣ             :: AbstractFloat = 1e-8,
     η₁             :: AbstractFloat = 1e-3, 
-    η₂             :: AbstractFloat = 0.66, 
-    σ₁             :: AbstractFloat = 10.0, 
-    σ₂             :: AbstractFloat = 0.5,
+    η₂             :: AbstractFloat = 2/3, 
+    σ₁             :: AbstractFloat = 10., 
+    σ₂             :: AbstractFloat = 1/2,
     ApproxD        :: Bool = true,
     Disp_grad_obj  :: Bool = false,
     max_eval       :: Int = 1000, 
@@ -71,11 +73,7 @@ function LM_D(nlp  :: AbstractNLSModel;
     sk₋₁   = zeros(n)
     
     local D
-    if ApproxD
-        D = Diagonal(ones(n))
-    else
-        D = Diagonal(zeros(n))
-    end
+    D = ApproxD ? Diagonal(ones(n)) : Diagonal(zeros(n))
 
     ################## On calcule leur norme #################
     normFx₀ = norm(Fx)
@@ -84,10 +82,10 @@ function LM_D(nlp  :: AbstractNLSModel;
     normFx  = normFx₀
 
     iter = 0    
-    λ = 0.0
+    λ = 0
     λ₀ = 1e-6
 
-    iter_time = 0.0
+    iter_time = 0
     tired   = neval_residual(nlp) > max_eval || iter_time > max_time
     status  = :unknown
     start_time = time()
@@ -98,10 +96,10 @@ function LM_D(nlp  :: AbstractNLSModel;
     gradient = [normGx]
 
     @info log_header(
-        [:iter, :nf, :obj, :grad, :status, :nd, :nD, :λ],
-        [Int, Int, Float64, Float64, String, Float64, Float64, Float64],
+        [:iter, :nf, :obj, :grad, :ρ, :status, :nd, :nD, :λ],
+        [Int, Int, Float64, Float64, Float64, String, Float64, Float64, Float64],
         hdr_override=Dict(
-        :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :nd => "‖d‖", :nD => "‖D‖∞", :λ => "λ")
+        :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :nD => "‖D‖∞", :λ => "λ")
         )
 
     while !(optimal || tired)
@@ -115,6 +113,9 @@ function LM_D(nlp  :: AbstractNLSModel;
 
         ρ = (normFx^2 - normFxᵖ^2) / (normFx^2 - norm(Jx * d + Fx)^2 - d'*D*d)
 
+        if normFx^2 - norm(Jx * d + Fx)^2 - d'*D*d < 0 && normFx^2 - normFxᵖ^2 < 0 
+            @show D
+        end
         if ρ < η₁
             λ = max(λ₀, σ₁ * λ)
             status = :increase_λ
@@ -131,23 +132,26 @@ function LM_D(nlp  :: AbstractNLSModel;
             # Jx   .= maj_J(Jx, rows, cols, vals)
             Jx    = jac_residual(nlp, x)
             mul!(Gx,Jx',Fx)
-            normFx   = norm(Fx)
+            normFx = norm(Fx)
             normGx = norm(Gx)
 
             ######################## Calcul de D #########################
 
             
-            for i = 1:length(Fx)
-                quasi_lin = is_quasi_lin(Fx[i], Fx₋₁[i], Jx₋₁[i,:], d)
-                quasi_nul = is_quasi_nul(Fx[i], Fx₋₁[i])
-                if quasi_lin || quasi_nul
-                    r[i] = 0
-                else
-                    r[i] = Fx[i]
-                end
-            end
-            mul!(yk₋₁,Jx',r)
-            mul!(yk₋₁,Jx₋₁',r,-1,1)
+            # for i = 1:lastindex(Fx)
+            #     quasi_lin = is_quasi_lin(Fx[i], Fx₋₁[i], Jx₋₁[i,:], d)
+            #     quasi_nul = is_quasi_nul(Fx[i], Fx₋₁[i])
+            #     if quasi_lin || quasi_nul
+            #         r[i] = 0
+            #     else
+            #         r[i] = Fx[i]
+            #     end
+            # end
+            # mul!(yk₋₁,Jx',r)
+            # mul!(yk₋₁,Jx₋₁',r,-1,1)
+
+            mul!(yk₋₁,Jx',Fx)
+            mul!(yk₋₁,Jx₋₁',Fx,-1,1)
             sk₋₁ .= x .- x₋₁
 
             if ApproxD
@@ -163,7 +167,7 @@ function LM_D(nlp  :: AbstractNLSModel;
         push!(objectif,normFx)
         push!(gradient, normGx)
 
-        @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, status, norm(d), norm(D,Inf), λ])
+        @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm(d), norm(D,Inf), λ])
 
         iter_time    = time() - start_time
         iter        += 1
@@ -218,9 +222,9 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
     ϵₐ             :: AbstractFloat = 1e-8,
     ϵᵣ             :: AbstractFloat = 1e-8,
     η₁             :: AbstractFloat = 1e-3, 
-    η₂             :: AbstractFloat = 0.66, 
-    σ₁             :: AbstractFloat = 10.0, 
-    σ₂             :: AbstractFloat = 0.5,
+    η₂             :: AbstractFloat = 2/3, 
+    σ₁             :: AbstractFloat = 10., 
+    σ₂             :: AbstractFloat = 1/2,
     ApproxD        :: Bool = true,
     Disp_grad_obj  :: Bool = false,
     max_eval       :: Int  = 1000, 
@@ -230,43 +234,42 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
 
     ################ On évalue F(x₀) et J(x₀) ################
 
-    x   = copy(x0)
-    xᵖ  = similar(x)
-    x₋₁ = similar(x)
-    xᵃ  = similar(x)
-    Fx  = residual(nlp, x)
-    Fxᵖ = similar(Fx)
-    Fxᵃ = similar(Fx)
-    r   = similar(Fx)
-    Fx₋₁ = similar(Fx)
-    Jx  = jac_residual(nlp, x)
-    Jx₋₁= similar(Jx)
-    Gx  = Jx' * Fx
+    x     = copy(x0)
+    xᵖ    = similar(x)
+    x₋₁   = similar(x)
+    xᵃ    = similar(x)
+    Fx    = residual(nlp, x)
+    Fxᵖ   = similar(Fx)
+    Fxᵃ   = similar(Fx)
+    r     = similar(Fx)
+    JxdFx = similar(Fx)
+    dDd   = 0
+    Fx₋₁  = similar(Fx)
+    Jx    = jac_residual(nlp, x)
+    Jx₋₁  = similar(Jx)
+    Gx    = Jx' * Fx
 
     normFx₀ = norm(Fx)
     normGx₀ = norm(Gx)
     normGx  = normGx₀
     normFx  = normFx₀
 
-    fx = 0.5* normFx^2
+    fx = (1/2) * normFx^2
     
 
     m,n = size(Jx)
     yk₋₁   = zeros(n)
     sk₋₁   = zeros(n)
     
-    if ApproxD
-        D = Diagonal(ones(n))
-    else
-        D = Diagonal(zeros(n))
-    end
+    local D
+    D = ApproxD ? Diagonal(ones(n)) : Diagonal(zeros(n))
 
     iter = 0    
-    λ    = 0.0
+    λ    = 0
     λ₀   = 1e-6
     δ    = 0
 
-    iter_time = 0.0
+    iter_time = 0
     tired   = neval_residual(nlp) > max_eval || iter_time > max_time
     status  = :unknown
     start_time = time()
@@ -290,15 +293,14 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
         
         xᵖ     .= x .+ d
         residual!(nlp, xᵖ, Fxᵖ)
-        fxᵖ     = 0.5* norm(Fxᵖ)^2
+        fxᵖ     = (1/2) * norm(Fxᵖ)^2
 
-        # valeur absolue d'une composante de Jx * d + Fx pour le test composante par composante
-        # Jx * d + Fx à précalculer
-        # d'*D*d à précalculer
-        qxᵖ  = 0.5 * (norm(Jx * d + Fx)^2 + δ * d'*D*d)
-        qᵃxᵖ = 0.5 * (norm(Jx * d + Fx)^2 + (1-δ) * d'*D*d)
+        JxdFx .= Jx * d + Fx
+        dDd    = d'*D*d
+        qxᵖ  = (1/2) * (norm(JxdFx)^2 + δ * dDd)
+        qᵃxᵖ = (1/2) * (norm(JxdFx)^2 + (1-δ) * dDd)
 
-        if abs(qxᵖ - fxᵖ) > 1.5 * abs(qᵃxᵖ - fxᵖ) 
+        if abs(qxᵖ - fxᵖ) > (3/2) * abs(qᵃxᵖ - fxᵖ) 
             xᵃ .= x .+ argmin_q(Fx, Jx, λ, n, D; δ = 1-δ)
             residual!(nlp, xᵃ, Fxᵃ)
             fxᵃ = (1/2)* norm(Fxᵃ)^2
@@ -331,10 +333,10 @@ function LM_Dalternative(nlp        :: AbstractNLSModel;
             mul!(Gx, Jx', Fx)
             normFx  = norm(Fx)
             normGx  = norm(Gx)
-            fx      = 0.5 * normFx^2
+            fx      = (1/2) * normFx^2
 
             ######################## Calcul de D #########################
-            for i = 1:length(Fx)
+            for i = 1:lastindex(Fx)
                 quasi_lin = is_quasi_lin(Fx[i], Fx₋₁[i], Jx₋₁[i,:], d)
                 quasi_nul = is_quasi_nul(Fx[i], Fx₋₁[i])
                 if quasi_lin || quasi_nul
@@ -409,7 +411,7 @@ end
 
 
 
-function SPG(D, s, y; ϵ = 0.01)
+function SPG(D, s, y; ϵ = 1/100)
     n   = size(D,1)
     sty = s' * y
     ss  = s' * s
@@ -423,7 +425,7 @@ function SPG(D, s, y; ϵ = 0.01)
     return D
 end
 
-function Zhu(D, s, y; ϵ = 0.01)
+function Zhu(D, s, y; ϵ = 1/100)
     n    = size(D,1)
     tr   = sum(si^4 for si ∈ s)
     sy   = s' * y
@@ -440,7 +442,7 @@ function Zhu(D, s, y; ϵ = 0.01)
     return D
 end 
 
-function Andrei(D, s, y; ϵ = 0.01)
+function Andrei(D, s, y; ϵ = 1/100)
     n    = size(D)[1]
     tr   = sum(si^4 for si ∈ s)
     sy   = s' * y 

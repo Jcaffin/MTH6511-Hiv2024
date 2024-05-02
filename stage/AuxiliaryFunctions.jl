@@ -8,7 +8,7 @@ function compare_solvers(pb_sc,
     solvers_names = Dict(LM => "LM", LM_SPG => "LM_SPG", LM_Zhu => "LM_zhu", LM_Andrei => "LM_Andrei", LM_SPG_alt => "LM_SPG_alt", LM_Zhu_alt => "LM_Zhu_alt", LM_Andrei_alt => "LM_Andrei_alt" )
     solvers = collect(values(dict_solvers))
 
-    for k = 1:length(solvers) 
+    for k = 1:lastindex(solvers) 
         solver = solvers[k]
         name = solvers_names[solver]
 
