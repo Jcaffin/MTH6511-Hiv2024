@@ -12,7 +12,7 @@ function compare_solvers(pb_sc,
         solver = solvers[k]
         name = solvers_names[solver]
 
-        stats, obj, grad = solver(pb_sc; bool=true)
+        stats, obj, grad = solver(pb_sc; bool_grad_obj=true)
         to_plot = (type == "grad") ? grad : obj
         rangs = 1:length(grad)
         if k == 1
