@@ -1,11 +1,20 @@
-using JSOSolvers, SolverBenchmark, Plots
-
 function compare_solvers(pb_sc,
     dict_solvers;
     type :: String ="grad",
     save :: Bool = false)
 
-    solvers_names = Dict(LM => "LM", LM_SPG => "LM_SPG", LM_Zhu => "LM_zhu", LM_Andrei => "LM_Andrei", LM_SPG_alt => "LM_SPG_alt", LM_Zhu_alt => "LM_Zhu_alt", LM_Andrei_alt => "LM_Andrei_alt" )
+    solvers_names = Dict(
+        LM_test => "LM_test", 
+        LM_wo_D => "LM_wo_D", 
+        LM_D_y_diese => "LM_D_y_diese",
+        LM_D_y_tilde => "LM_D_y_tilde",
+        LM_SPG => "LM_SPG", 
+        LM_Zhu => "LM_zhu", 
+        LM_Andrei => "LM_Andrei", 
+        LM_SPG_alt => "LM_SPG_alt", 
+        LM_Zhu_alt => "LM_Zhu_alt", 
+        LM_Andrei_alt => "LM_Andrei_alt" 
+        )
     solvers = collect(values(dict_solvers))
 
     for k = 1:lastindex(solvers) 
@@ -23,7 +32,7 @@ function compare_solvers(pb_sc,
         reset!(pb_sc)
     end
     display(current())
-    save && savefig("Pictures/Comparaison/"*pb_sc.meta.name*"_"*type*"quasilin.svg")
+    save && savefig("Pictures/Comparaison/"*pb_sc.meta.name*"_"*type*".svg")
 end
 
 
@@ -41,5 +50,5 @@ function pp(dict_solvers,
     cost(df) = (df.status .!= :first_order) * Inf + df.iter
     performance_profile(stats, cost)
     display(current())
-    save && savefig("Pictures/Performance_profiles/LMD_SPG_Zhu_Andrei.svg")
+    save && savefig("Pictures/Performance_profiles/LMD_Andrei_ALT.svg")
 end

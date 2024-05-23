@@ -1,5 +1,3 @@
-using LinearAlgebra, NLPModels, Printf, Logging, SolverCore, Test, ADNLPModels, SparseArrays, QRMumps
-
 function maj_J(Jx, rows, cols, vals)
     for k = 1:lastindex(rows)
         i = rows[k]
@@ -9,13 +7,13 @@ function maj_J(Jx, rows, cols, vals)
     return Jx
 end
 
-function is_quasi_lin(Fxi, Fx₋₁i, Jx₋₁i, d; τ₁ = 0.01)
-    quasi_lin = abs(Fxi - (Fx₋₁i + Jx₋₁i'*d))/(1+abs(Fxi)) < τ₁ ? true : false
+function is_quasi_lin(Fxi, Fx₋₁i, Jx₋₁i, d; τ₃ = 0.01)
+    quasi_lin = abs(Fxi - (Fx₋₁i + Jx₋₁i'*d))/(1+abs(Fxi)) < τ₃ ? true : false
     return quasi_lin
 end
 
-function is_quasi_nul(Fxi, Fx₋₁i; τ₂ = 0.01, τ₃ = 0.01)
-    quasi_nul = abs(Fxi) < τ₂ * abs(Fx₋₁i) + τ₃ ? true : false
+function is_quasi_nul(Fxi, Fx₋₁i; τ₁ = 0.01, τ₂ = 0.01)
+    quasi_nul = abs(Fxi) < τ₁ * abs(Fx₋₁i) + τ₂ ? true : false
     return quasi_nul
 end
 
@@ -300,11 +298,11 @@ function Andrei(D, s, y; ϵ = 1/100)
 end 
 
 
-LM                = (nlp ; bool_grad_obj=false) -> LM_D(nlp; approxD = false, disp_grad_obj = bool_grad_obj)
-LM_SPG            = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = SPG    , disp_grad_obj = bool_grad_obj)
-LM_Zhu            = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = Zhu    , disp_grad_obj = bool_grad_obj)
-LM_Andrei         = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = Andrei , disp_grad_obj = bool_grad_obj)
-LM_SPG_alt        = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = SPG    , disp_grad_obj = bool_grad_obj, alternative_model = true)
-LM_Zhu_alt        = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = Zhu    , disp_grad_obj = bool_grad_obj, alternative_model = true)
-LM_Andrei_alt     = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = Andrei , disp_grad_obj = bool_grad_obj, alternative_model = true)
+LM_wo_D         = (nlp ; bool_grad_obj=false) -> LM_D(nlp; approxD = false, disp_grad_obj = bool_grad_obj)
+# LM_SPG            = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = SPG    , disp_grad_obj = bool_grad_obj)
+# LM_Zhu            = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = Zhu    , disp_grad_obj = bool_grad_obj)
+# LM_Andrei         = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = Andrei , disp_grad_obj = bool_grad_obj)
+# LM_SPG_alt        = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = SPG    , disp_grad_obj = bool_grad_obj, alternative_model = true)
+# LM_Zhu_alt        = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = Zhu    , disp_grad_obj = bool_grad_obj, alternative_model = true)
+# LM_Andrei_alt     = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = Andrei , disp_grad_obj = bool_grad_obj, alternative_model = true)
 

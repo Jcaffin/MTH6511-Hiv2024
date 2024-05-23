@@ -8,13 +8,16 @@ name = filter_df[1, :name]
 model = BundleAdjustmentModel(name)
 
 dict_solvers = Dict(
-    :LM => LM,
-    :LM_SPG => LM_SPG,
+    # :LM_wo_D => LM_wo_D,
+    #:LM_test => LM_test,
+    :LM_D_test => LM_D_test,
+    :LM_D_test_wo_NW => LM_D_test_wo_NW,
+    #:LM_SPG => LM_SPG,
     #:LM_Zhu => LM_Zhu,
-    :LM_Andrei => LM_Andrei,
-    :LM_SPG_alt => LM_SPG_alt,
+    #:LM_Andrei => LM_Andrei,
+    #:LM_SPG_alt => LM_SPG_alt,
     #:LM_Zhu_alt => LM_Zhu_alt,
-    :LM_Andrei_alt => LM_Andrei_alt
+    #:LM_Andrei_alt => LM_Andrei_alt
     )
 
 compare_solvers(model, dict_solvers; type = "obj", save = true)
