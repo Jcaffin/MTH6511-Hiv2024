@@ -11,15 +11,18 @@ include("test.jl")
 
 dict_solvers = Dict(
     # :LM_wo_D => LM_wo_D,
-    :LM_test => LM_test,
+    # :LM_test => LM_test,
     # :LM_D_y_diese => LM_D_y_diese,
     # :LM_D_y_tilde => LM_D_y_tilde,
-    :LM_SPG => LM_SPG,
+    # :LM_SPG => LM_SPG,
     # :LM_Zhu => LM_Zhu,
-    :LM_Andrei => LM_Andrei,
-    :LM_SPG_alt => LM_SPG_alt,
+    # :LM_Andrei => LM_Andrei,
+    # :LM_SPG_alt => LM_SPG_alt,
     # :LM_Zhu_alt => LM_Zhu_alt,
-    :LM_Andrei_alt => LM_Andrei_alt
+    # :LM_Andrei_alt => LM_Andrei_alt,
+    :LM_SPG_quasi_nul_lin => LM_SPG_quasi_nul_lin,
+    :LM_Zhu_quasi_nul_lin => LM_Zhu_quasi_nul_lin,
+    :LM_Andrei_quasi_nul_lin => LM_Andrei_quasi_nul_lin,
     )
 
     

@@ -49,12 +49,12 @@ function Andrei_test(D, s, y; ϵ = 1/100)
     return D
 end 
 
-function is_quasi_nul_test(Fxi, Fx₋₁i; τ₁ = 0.01, τ₂ = 0.01)
+function is_quasi_nul_test(Fxi, Fx₋₁i, τ₁, τ₂)
     quasi_nul = abs(Fxi) < τ₁ * abs(Fx₋₁i) + τ₂ ? true : false
     return quasi_nul
 end
 
-function is_quasi_lin_test(Fxi, Fx₋₁i, Jx₋₁i, d; τ₃ = 0.01)
+function is_quasi_lin_test(Fxi, Fx₋₁i, Jx₋₁i, d, τ₃)
     quasi_lin = abs(Fxi - (Fx₋₁i + Jx₋₁i'*d))/(1+abs(Fxi)) < τ₃ ? true : false
     return quasi_lin
 end
@@ -68,8 +68,8 @@ function LM_tst(nlp     :: AbstractNLSModel;
     σ₁                :: AbstractFloat = 10., 
     σ₂                :: AbstractFloat = 1/2,
     disp_grad_obj     :: Bool = false,
-    max_eval          :: Int = 1000, 
-    max_time          :: AbstractFloat = 60.,
+    max_eval          :: Int = 100000, 
+    max_time          :: AbstractFloat = 3600.,
     max_iter          :: Int = typemax(Int64)
     )
 
@@ -221,10 +221,11 @@ function LM_D_tst(nlp     :: AbstractNLSModel;
     τ₁                :: AbstractFloat = 1/100,
     τ₂                :: AbstractFloat = 1/100,
     τ₃                :: AbstractFloat = 1/100,
-    alternative_model :: Bool = false,
+    alternative_model     :: Bool = false,
+    approxD_quasi_nul_lin  :: Bool = false,
     disp_grad_obj     :: Bool = false,
-    max_eval          :: Int = 1000, 
-    max_time          :: AbstractFloat = 60.,
+    max_eval          :: Int = 100000, 
+    max_time          :: AbstractFloat = 3600.,
     max_iter          :: Int = typemax(Int64)
     )
 
@@ -235,6 +236,7 @@ function LM_D_tst(nlp     :: AbstractNLSModel;
     Fx  = residual(nlp, x)
     Fxᵖ = similar(Fx)
     Fx₋₁ = similar(Fx)
+    #### ajout alternative_model ####
     JxdFx = similar(Fx)
     dDd   = 0
     if alternative_model
@@ -242,6 +244,8 @@ function LM_D_tst(nlp     :: AbstractNLSModel;
         Fxᵃ   = similar(Fx)
     end
     δ    = 0
+    ###### ajout quasi_lin_nul ######
+    r   = similar(Fx)
 
     Jx    = jac_residual(nlp, x)
     Jx₋₁  = similar(Jx)
@@ -341,13 +345,33 @@ function LM_D_tst(nlp     :: AbstractNLSModel;
             fx      = (1/2) * normFx^2
 
             ##### Maj yk₋₁ pour calcul de D #####
-            if is_NW
-                mul!(yk₋₁,Jx',Fx)
-                mul!(yk₋₁,Jx₋₁',Fx,-1,1)
+            if approxD_quasi_nul_lin
+                for i = 1:lastindex(Fx)
+                    quasi_nul = is_quasi_nul_test(Fx[i], Fx₋₁[i], τ₁, τ₂)
+                    quasi_lin = is_quasi_lin_test(Fx[i], Fx₋₁[i], Jx₋₁[i,:], d, τ₃)
+                    if quasi_lin || quasi_nul
+                        r[i] = 0
+                    else
+                        r[i] = Fx[i]
+                    end
+                end
+                if is_NW
+                    mul!(yk₋₁,Jx',r)
+                    mul!(yk₋₁,Jx₋₁',r,-1,1)
+                else
+                    mul!(yk₋₁,Jx',r)
+                    mul!(yk₋₁,Jx₋₁',r,-1,1)
+                end
             else
-                mul!(yk₋₁,Jx',Fx₋₁)
-                mul!(yk₋₁,Jx₋₁',Fx₋₁,-1,1)
+                if is_NW
+                    mul!(yk₋₁,Jx',Fx)
+                    mul!(yk₋₁,Jx₋₁',Fx,-1,1)
+                else
+                    mul!(yk₋₁,Jx',Fx₋₁)
+                    mul!(yk₋₁,Jx₋₁',Fx₋₁,-1,1)
+                end
             end
+            
             sk₋₁ .= x .- x₋₁
 
             D = fctD(D, sk₋₁, yk₋₁)
@@ -419,3 +443,6 @@ LM_Andrei        = (nlp ; bool_grad_obj=false) -> LM_D_tst(nlp; fctD = Andrei_te
 LM_SPG_alt       = (nlp ; bool_grad_obj=false) -> LM_D_tst(nlp; fctD = SPG_test,    alternative_model = true, disp_grad_obj = bool_grad_obj)
 LM_Zhu_alt       = (nlp ; bool_grad_obj=false) -> LM_D_tst(nlp; fctD = Zhu_test,    alternative_model = true, disp_grad_obj = bool_grad_obj)
 LM_Andrei_alt    = (nlp ; bool_grad_obj=false) -> LM_D_tst(nlp; fctD = Andrei_test, alternative_model = true, disp_grad_obj = bool_grad_obj)
+LM_SPG_quasi_nul_lin       = (nlp ; bool_grad_obj=false) -> LM_D_tst(nlp; fctD = SPG_test,    approxD_quasi_nul_lin = true,  alternative_model = true, disp_grad_obj = bool_grad_obj)
+LM_Zhu_quasi_nul_lin       = (nlp ; bool_grad_obj=false) -> LM_D_tst(nlp; fctD = Zhu_test,    approxD_quasi_nul_lin = true,  alternative_model = true, disp_grad_obj = bool_grad_obj)
+LM_Andrei_quasi_nul_lin    = (nlp ; bool_grad_obj=false) -> LM_D_tst(nlp; fctD = Andrei_test, approxD_quasi_nul_lin = true,  alternative_model = true, disp_grad_obj = bool_grad_obj)

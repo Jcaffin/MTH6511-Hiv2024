@@ -13,7 +13,10 @@ function compare_solvers(pb_sc,
         LM_Andrei => "LM_Andrei", 
         LM_SPG_alt => "LM_SPG_alt", 
         LM_Zhu_alt => "LM_Zhu_alt", 
-        LM_Andrei_alt => "LM_Andrei_alt" 
+        LM_Andrei_alt => "LM_Andrei_alt",
+        LM_SPG_quasi_nul_lin => "LM_SPG_quasi_nul_lin",
+        LM_Zhu_quasi_nul_lin => "LM_Zhu_quasi_nul_lin",
+        LM_Andrei_quasi_nul_lin => "LM_Andrei_quasi_nul_lin"
         )
     solvers = collect(values(dict_solvers))
 
@@ -50,5 +53,5 @@ function pp(dict_solvers,
     cost(df) = (df.status .!= :first_order) * Inf + df.iter
     performance_profile(stats, cost)
     display(current())
-    save && savefig("Pictures/Performance_profiles/LMD_Andrei_ALT.svg")
+    save && savefig("Pictures/Performance_profiles/LMD_Andrei_quasinullin.svg")
 end
