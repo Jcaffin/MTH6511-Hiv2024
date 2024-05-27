@@ -6,8 +6,6 @@ function compare_solvers(pb_sc,
     solvers_names = Dict(
         LM_test => "LM_test", 
         LM_wo_D => "LM_wo_D", 
-        LM_D_y_diese => "LM_D_y_diese",
-        LM_D_y_tilde => "LM_D_y_tilde",
         LM_SPG => "LM_SPG", 
         LM_Zhu => "LM_zhu", 
         LM_Andrei => "LM_Andrei", 

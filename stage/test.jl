@@ -207,10 +207,10 @@ function LM_tst(nlp     :: AbstractNLSModel;
 end
 
 
+
 function LM_D_tst(nlp     :: AbstractNLSModel;
     x0                :: AbstractVector = nlp.meta.x0, 
     fctD              :: Function =  Andrei_test,
-    is_NW             :: Bool = true,
     ϵₐ                :: AbstractFloat = 1e-8,
     ϵᵣ                :: AbstractFloat = 1e-8,
     η₁                :: AbstractFloat = 1e-3, 
@@ -233,9 +233,16 @@ function LM_D_tst(nlp     :: AbstractNLSModel;
     x   = copy(x0)
     xᵖ  = similar(x)
     x₋₁ = similar(x)
+    d = similar(x)
     Fx  = residual(nlp, x)
     Fxᵖ = similar(Fx)
     Fx₋₁ = similar(Fx)
+    # rows, cols = jac_structure_residual(nlp)
+    # vals       = jac_coord_residual(nlp, x)
+    # Jx         = sparse(rows, cols, vals)
+    Jx    = jac_residual(nlp, x)
+    Jx₋₁  = similar(Jx)
+    Gx    = Jx' * Fx
     #### ajout alternative_model ####
     JxdFx = similar(Fx)
     dDd   = 0
@@ -247,9 +254,7 @@ function LM_D_tst(nlp     :: AbstractNLSModel;
     ###### ajout quasi_lin_nul ######
     r   = similar(Fx)
 
-    Jx    = jac_residual(nlp, x)
-    Jx₋₁  = similar(Jx)
-    Gx    = Jx' * Fx
+    
 
     normFx₀ = norm(Fx)
     normGx₀ = norm(Gx)
@@ -287,13 +292,19 @@ function LM_D_tst(nlp     :: AbstractNLSModel;
         :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ")
         )
 
+
+    a = @allocated begin
     while !(optimal || tired)
         ########## Calcul d (facto QR) ##########
         A = [Jx; sqrt(D + λ * I(n))]
         b = [Fx; zeros(n)]
         b .*= -1
+        # qrm_init()
+        # spmat = qrm_spmat_init(A)
+        # x = qrm_least_squares(spmat, b)
         QR = qr(A)
-        d = QR\(b)
+        d .= QR\(b)
+
 
         xᵖ     .= x .+ d
         residual!(nlp, xᵖ,Fxᵖ)
@@ -355,21 +366,11 @@ function LM_D_tst(nlp     :: AbstractNLSModel;
                         r[i] = Fx[i]
                     end
                 end
-                if is_NW
-                    mul!(yk₋₁,Jx',r)
-                    mul!(yk₋₁,Jx₋₁',r,-1,1)
-                else
-                    mul!(yk₋₁,Jx',r)
-                    mul!(yk₋₁,Jx₋₁',r,-1,1)
-                end
+                mul!(yk₋₁,Jx',r)
+                mul!(yk₋₁,Jx₋₁',r,-1,1)
             else
-                if is_NW
-                    mul!(yk₋₁,Jx',Fx)
-                    mul!(yk₋₁,Jx₋₁',Fx,-1,1)
-                else
-                    mul!(yk₋₁,Jx',Fx₋₁)
-                    mul!(yk₋₁,Jx₋₁',Fx₋₁,-1,1)
-                end
+                mul!(yk₋₁,Jx',Fx)
+                mul!(yk₋₁,Jx₋₁',Fx,-1,1)
             end
             
             sk₋₁ .= x .- x₋₁
@@ -382,7 +383,7 @@ function LM_D_tst(nlp     :: AbstractNLSModel;
             end
         end
 
-        push!(objectif,normFx)
+        push!(objectif, normFx)
         push!(gradient, normGx)
 
         @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm(d), λ])
@@ -396,6 +397,7 @@ function LM_D_tst(nlp     :: AbstractNLSModel;
         optimal      = normGx ≤ ϵₐ + ϵᵣ*normGx₀ || normFx ≤ ϵₐ + ϵᵣ*normFx₀
         
     end
+    end; a > 0 && @show a
 
     status = if optimal 
         :first_order
@@ -435,8 +437,6 @@ end
 
 
 LM_test          = (nlp ; bool_grad_obj=false) -> LM_tst(nlp; disp_grad_obj = bool_grad_obj)
-LM_D_y_diese     = (nlp ; bool_grad_obj=false) -> LM_D_tst(nlp; fctD = Andrei_test    , disp_grad_obj = bool_grad_obj)
-LM_D_y_tilde     = (nlp ; bool_grad_obj=false) -> LM_D_tst(nlp; fctD = Andrei_test, is_NW = false, disp_grad_obj = bool_grad_obj)
 LM_SPG           = (nlp ; bool_grad_obj=false) -> LM_D_tst(nlp; fctD = SPG_test    , disp_grad_obj = bool_grad_obj)
 LM_Zhu           = (nlp ; bool_grad_obj=false) -> LM_D_tst(nlp; fctD = Zhu_test    , disp_grad_obj = bool_grad_obj)
 LM_Andrei        = (nlp ; bool_grad_obj=false) -> LM_D_tst(nlp; fctD = Andrei_test , disp_grad_obj = bool_grad_obj)
