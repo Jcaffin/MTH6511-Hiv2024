@@ -1,0 +1,473 @@
+        - function maj_J(Jx, rows, cols, vals)
+        -     for k = 1:lastindex(rows)
+        -         i = rows[k]
+        -         j = cols[k]
+        -         Jx[i,j] = vals[k]
+        -     end
+        -     return Jx
+        - end
+        - 
+        - function argmin_q(A, b, Fx, Jx, sqrt_DλI, λ, D, m, n; δ=0)
+        0     if δ==0
+        0         for i=1:n
+        0             sqrt_DλI[i,i] = sqrt(λ)
+        0         end
+        -     else
+        0         for i=1:n
+        0             sqrt_DλI[i,i] = sqrt(D[i,i] + λ)
+        0         end
+        -     end
+        0     A[1:m, :]     .= Jx
+        0     A[m+1:end, :] .= sqrt_DλI
+        0     b[1:m]        .= Fx
+        -     # A .= [Jx; sqrt(D + λ * I(n))]
+        -     # b .= [Fx; zeros(n)]
+        0     b .*= -1
+        -     # qrm_init()
+        -     # spmat = qrm_spmat_init(A)
+        -     # d = qrm_least_squares(spmat, b)
+        0     QR = qr(A)
+        0     d = QR\(b)
+        0     return d
+        - end
+        - 
+        - function SPG(D, s, y; ϵ = 1/100)
+        -     n   = size(D,1)
+        -     sty = s' * y
+        -     ss  = s' * s
+        -     non_nul = sty > ϵ ? true : false
+        -     if non_nul
+        -         σ  = sty /ss
+        -         for i = 1:n
+        0             D[i,i]  = σ
+        0         end
+        0     end
+        0     return D
+        0 end
+        0 
+        - function Zhu(D, s, y; ϵ = 1/100)
+        0     n    = size(D,1)
+        0     tr   = sum(si^4 for si ∈ s)
+        0     sy   = s' * y
+        0     sDs = sum(s[i]^2 * D[i, i] for i = 1 : n)
+        -     frac  = (sy - sDs) / tr
+        0     for i = 1:n
+        -         Di = D[i,i] + frac * s[i]^2
+        0         if Di > ϵ
+        0             D[i,i] = Di
+        -         else
+        -             D[i,i] = 1
+        -         end
+        -     end
+        -     return D
+        - end 
+        - 
+        - function Andrei(D, s, y; ϵ = 1/100)
+        0     n    = size(D)[1]
+        0     tr   = sum(si^4 for si ∈ s)
+        0     sy   = s' * y 
+        0     ss   = s' * s
+        0     sDs  = s' * D * s
+        0     frac = (sy + ss - sDs)/tr
+        - 
+        0     for i = 1:n
+        0         Di = D[i,i] + frac * s[i]^2 - 1
+        0         if Di > ϵ
+        0             D[i,i] = Di
+        -         else
+        0             D[i,i] = 1
+        -         end
+        0     end
+        0     return D
+        - end 
+        - 
+        - function is_quasi_nul(Fxi, Fx₋₁i, τ₁, τ₂)
+        -     quasi_nul = abs(Fxi) < τ₁ * abs(Fx₋₁i) + τ₂ ? true : false
+        -     return quasi_nul
+        - end
+        - 
+        - function is_quasi_lin(Fxi, Fx₋₁i, Jx₋₁i, d, τ₃)
+        0     quasi_lin = abs(Fxi - (Fx₋₁i + Jx₋₁i'*d))/(1+abs(Fxi)) < τ₃ ? true : false
+        0     return quasi_lin
+        - end
+        - 
+        - function LM_tst(nlp     :: AbstractNLSModel;
+        -     x0                :: AbstractVector = nlp.meta.x0, 
+        -     ϵₐ                :: AbstractFloat = 1e-8,
+        -     ϵᵣ                :: AbstractFloat = 1e-8,
+        -     η₁                :: AbstractFloat = 1e-3, 
+        -     η₂                :: AbstractFloat = 2/3, 
+        -     σ₁                :: AbstractFloat = 10., 
+        -     σ₂                :: AbstractFloat = 1/2,
+        -     disp_grad_obj     :: Bool = false,
+        -     max_eval          :: Int = 100000, 
+        -     max_time          :: AbstractFloat = 3600.,
+        -     max_iter          :: Int = typemax(Int64)
+        -     )
+        - 
+        -     ################ On évalue F(x₀) et J(x₀) ################
+        -     x   = copy(x0)
+        -     xᵖ  = similar(x)
+        -     x₋₁ = similar(x)
+        -     Fx  = residual(nlp, x)
+        -     Fxᵖ = similar(Fx)
+        -     Fx₋₁ = similar(Fx)
+        - 
+        -     Jx    = jac_residual(nlp, x)
+        -     Jx₋₁  = similar(Jx)
+        -     Gx    = Jx' * Fx
+        - 
+        -     normFx₀ = norm(Fx)
+        -     normGx₀ = norm(Gx)
+        -     normGx  = normGx₀
+        -     normFx  = normFx₀
+        - 
+        -     fx = (1/2) * normFx^2
+        -     m,n = size(Jx)
+        - 
+        -     iter = 0    
+        -     λ = 0
+        -     λ₀ = 1e-6
+        - 
+        -     iter_time = 0
+        -     tired   = neval_residual(nlp) > max_eval || iter_time > max_time
+        -     status  = :unknown
+        -     start_time = time()
+        -     optimal    = normGx ≤ ϵₐ + ϵᵣ*normGx₀ || normFx ≤ ϵₐ + ϵᵣ*normFx₀
+        - 
+        -     #################### Tracé des graphes ###################
+        -     objectif = [normFx]
+        -     gradient = [normGx]
+        - 
+        -     @info log_header(
+        -         [:iter, :nf, :obj, :grad, :ρ, :status, :nd, :λ],
+        -         [Int, Int, Float64, Float64, Float64, String, Float64, Float64],
+        -         hdr_override=Dict(
+        -         :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ")
+        -         )
+        - 
+        -     while !(optimal || tired)
+        -         ########## Calcul d (facto QR) ##########
+        -         A = [Jx; sqrt(λ * I(n))]
+        -         b = [Fx; zeros(n)]
+        -         b .*= -1
+        -         QR = qr(A)
+        -         d = QR\(b)
+        - 
+        -         xᵖ     .= x .+ d
+        -         residual!(nlp, xᵖ,Fxᵖ)
+        -         fxᵖ  = (1/2) * norm(Fxᵖ)^2
+        -         qxᵖ  = (1/2) * (norm(Jx * d + Fx)^2)
+        - 
+        - 
+        -         ρ = (fx - fxᵖ) / (fx - qxᵖ)
+        - 
+        -         if ρ < η₁
+        -             λ = max(λ₀, σ₁ * λ)
+        -             status = :increase_λ
+        -         else
+        -             #### Stockage anciennes valeurs #####
+        -             x₋₁  .= x
+        -             Jx₋₁ .= Jx
+        -             Fx₋₁ .= Fx
+        - 
+        -             ############ Mise à jour ############
+        -             x    .= xᵖ
+        -             Fx   .= Fxᵖ
+        -             # jac_coord_residual!(nlp, x, vals)
+        -             # Jx   .= maj_J(Jx, rows, cols, vals)
+        -             Jx    = jac_residual(nlp, x)
+        -             mul!(Gx,Jx',Fx)
+        -             normFx = norm(Fx)
+        -             normGx = norm(Gx)
+        -             fx      = (1/2) * normFx^2
+        -             
+        -             status = :success    
+        -             if ρ ≥ η₂
+        -                 λ = σ₂ * λ
+        -             end
+        -         end
+        - 
+        -         push!(objectif,normFx)
+        -         push!(gradient, normGx)
+        - 
+        -         @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm(d), λ])
+        - 
+        -         iter_time    = time() - start_time
+        -         iter        += 1
+        - 
+        -         many_evals   = neval_residual(nlp) > max_eval
+        -         iter_limit   = iter > max_iter
+        -         tired        = many_evals || iter_time > max_time || iter_limit
+        -         optimal      = normGx ≤ ϵₐ + ϵᵣ*normGx₀ || normFx ≤ ϵₐ + ϵᵣ*normFx₀
+        -         
+        -     end
+        - 
+        -     status = if optimal 
+        -         :first_order
+        -         elseif tired
+        -             if neval_residual(nlp) > max_eval
+        -                 :max_eval
+        -             elseif iter_time > max_time
+        -                 :max_time
+        -             elseif iter > max_iter
+        -                 :max_iter
+        -             else
+        -                 :unknown_tired
+        -             end
+        -         else
+        -         :unknown
+        -         end
+        - 
+        -     if disp_grad_obj
+        -         return GenericExecutionStats(nlp; 
+        -             status, 
+        -             solution = x,
+        -             objective = (1/2) * normFx^2,
+        -             dual_feas = normGx,
+        -             iter = iter, 
+        -             elapsed_time = iter_time), objectif, gradient
+        -     else
+        -         return GenericExecutionStats(nlp; 
+        -             status, 
+        -             solution = x,
+        -             objective = (1/2) * normFx^2,
+        -             dual_feas = normGx,
+        -             iter = iter, 
+        -             elapsed_time = iter_time) 
+        -     end
+        - end
+        - 
+        - 
+        0 
+        0 function LM_D(nlp     :: AbstractNLSModel;
+        0     x0                :: AbstractVector = nlp.meta.x0, 
+        0     fctD              :: Function =  Andrei,
+        0     ϵₐ                :: AbstractFloat = 1e-8,
+        0     ϵᵣ                :: AbstractFloat = 1e-8,
+        0     η₁                :: AbstractFloat = 1e-3, 
+        -     η₂                :: AbstractFloat = 2/3, 
+        -     σ₁                :: AbstractFloat = 10., 
+        -     σ₂                :: AbstractFloat = 1/2,
+        0     γ₁                :: AbstractFloat = 3/2,
+        0     τ₁                :: AbstractFloat = 1/100,
+        0     τ₂                :: AbstractFloat = 1/100,
+        -     τ₃                :: AbstractFloat = 1/100,
+        0     alternative_model      :: Bool = false,
+        -     approxD_quasi_nul_lin  :: Bool = false,
+        0     disp_grad_obj          :: Bool = false,
+        0     verbose                :: Bool = false,
+        0     max_eval          :: Int = 100000, 
+        -     max_time          :: AbstractFloat = 3600.,
+        0     max_iter          :: Int = typemax(Int64)
+        -     )
+        0 
+        -     ################ On évalue F(x₀) et J(x₀) ################
+      240     x   = copy(x0)
+      240     xᵖ  = similar(x)
+      240     x₋₁ = similar(x)
+      240     d = similar(x)
+      576     Fx  = residual(nlp, x)
+      576     Fxᵖ = similar(Fx)
+      576     Fx₋₁ = similar(Fx)
+        -     # rows, cols = jac_structure_residual(nlp)
+        0     # vals       = jac_coord_residual(nlp, x)
+        0     # Jx         = sparse(rows, cols, vals)
+        0     Jx    = jac_residual(nlp, x)
+        0     Jx₋₁  = similar(Jx)
+        0     Gx    = Jx' * Fx
+        0     #### ajout alternative_model ####
+      576     JxdFx = similar(Fx)
+        0     dDd   = 0
+        0     if alternative_model
+      160         xᵃ    = similar(x)
+      384         Fxᵃ   = similar(Fx)
+        -     end
+        0     δ    = alternative_model ? 0 : 1
+        -     ###### ajout quasi_lin_nul ######
+      576     r   = similar(Fx)
+        0 
+        -     
+        - 
+        0     normFx₀ = norm(Fx)
+        0     normGx₀ = norm(Gx)
+        0     normGx  = normGx₀
+        0     normFx  = normFx₀
+        -     
+        - 
+        0     fx = (1/2) * normFx^2
+        0     m,n = size(Jx)
+        - 
+        0     #pré-allocations
+      240     yk₋₁   = zeros(n)
+      240     sk₋₁   = zeros(n)
+        0     A           = spzeros(m+n, n)
+      240     sqrt_DλI    = spdiagm(0 => ones(n))
+      624     b           = zeros(Float64, m+n)
+        - 
+        0     iter = 0    
+        -     λ = 0
+        0     λ₀ = 1e-6
+        0 
+        0     local D
+      240     D = Diagonal(ones(n))
+        0 
+        0     iter_time = 0
+        0     tired   = neval_residual(nlp) > max_eval || iter_time > max_time
+        -     status  = :unknown
+        0     start_time = time()
+        0     optimal    = normGx ≤ ϵₐ + ϵᵣ*normGx₀ || normFx ≤ ϵₐ + ϵᵣ*normFx₀
+        - 
+        -     #################### Tracé des graphes ###################
+      192     disp_grad_obj && (objectif = [normFx])
+      192     disp_grad_obj && (gradient = [normGx])
+        - 
+        0     verbose && @info log_header(
+        0         [:iter, :nf, :obj, :grad, :ρ, :status, :nd, :λ],
+        0         [Int, Int, Float64, Float64, Float64, String, Float64, Float64],
+        0         hdr_override=Dict(
+        -         :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ")
+        -         )
+        0 
+        0     while !(optimal || tired)
+        0         ########## Calcul d (facto QR) ##########
+        0         d .= argmin_q(A, b, Fx, Jx, sqrt_DλI, λ, D, m, n; δ=δ)
+        0 
+        0 
+        0         xᵖ     .= x .+ d
+        0         residual!(nlp, xᵖ,Fxᵖ)
+        0         fxᵖ  = (1/2) * norm(Fxᵖ)^2
+        0         
+        0         ##### sélection du modèle q adéquat #####
+        0         JxdFx .= Jx * d + Fx
+        0         dDd    = d'*D*d
+        0         if alternative_model
+        0             qxᵖ  = (1/2) * (norm(JxdFx)^2 + δ * dDd)
+        0             qᵃxᵖ = (1/2) * (norm(JxdFx)^2 + (1-δ) * dDd)
+        0             if abs(qxᵖ - fxᵖ) > γ₁ * abs(qᵃxᵖ - fxᵖ) 
+        0                 xᵃ .= x .+ argmin_q(A, b, Fx, Jx, sqrt_DλI, λ, D, m, n; δ = 1-δ)
+        0                 residual!(nlp, xᵃ, Fxᵃ)
+        0                 fxᵃ = (1/2)* norm(Fxᵃ)^2
+        0                 if fxᵃ < fxᵖ
+        0                     δ = 1-δ
+        0                     xᵖ  .= xᵃ
+        0                     Fxᵖ .= Fxᵃ
+        0                     fxᵖ  = fxᵃ
+        0                     qxᵖ  = qᵃxᵖ
+        -                 end
+        -             end
+        -         else
+        0             qxᵖ  = (1/2) * (norm(JxdFx)^2 + dDd)
+        0         end
+        0 
+        - 
+        0         ρ = (fx - fxᵖ) / (fx - qxᵖ)
+        0 
+        0         if ρ < η₁
+        0             λ = max(λ₀, σ₁ * λ)
+        -             status = :increase_λ
+        0         else
+        0             #### Stockage anciennes valeurs #####
+        0             x₋₁  .= x
+        0             Jx₋₁ .= Jx
+        0             Fx₋₁ .= Fx
+        - 
+        -             ############ Mise à jour ############
+        0             x    .= xᵖ
+        0             Fx   .= Fxᵖ
+        0             # jac_coord_residual!(nlp, x, vals)
+        0             # Jx   .= maj_J(Jx, rows, cols, vals)
+        0             Jx    = jac_residual(nlp, x)
+        0             mul!(Gx,Jx',Fx)
+        0             normFx = norm(Fx)
+        0             normGx = norm(Gx)
+        0             fx      = (1/2) * normFx^2
+        0 
+        0             ##### Maj yk₋₁ pour calcul de D #####
+        0             if approxD_quasi_nul_lin
+        0                 for i = 1:lastindex(Fx)
+        0                     quasi_nul = is_quasi_nul(Fx[i], Fx₋₁[i], τ₁, τ₂)
+        0                     quasi_lin = is_quasi_lin(Fx[i], Fx₋₁[i], Jx₋₁[i,:], d, τ₃)
+        0                     if quasi_lin || quasi_nul
+        0                         r[i] = 0
+        0                     else
+        0                         r[i] = Fx[i]
+        0                     end
+        0                 end
+        0                 mul!(yk₋₁,Jx',r)
+        0                 mul!(yk₋₁,Jx₋₁',r,-1,1)
+        0             else
+        0                 mul!(yk₋₁,Jx',Fx)
+        0                 mul!(yk₋₁,Jx₋₁',Fx,-1,1)
+        -             end
+        0             
+        0             sk₋₁ .= x .- x₋₁
+        0 
+        0             D = fctD(D, sk₋₁, yk₋₁)
+        0             
+        0             status = :success    
+        0             if ρ ≥ η₂
+        0                 λ = σ₂ * λ
+        0             end
+        0         end
+        0 
+    15744         disp_grad_obj && push!(objectif, normFx)
+    15744         disp_grad_obj && push!(gradient, normGx)
+        0         verbose && @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm(d), λ])
+        0 
+        0         iter_time    = time() - start_time
+        0         iter        += 1
+        0 
+        0         many_evals   = neval_residual(nlp) > max_eval
+        0         iter_limit   = iter > max_iter
+        0         tired        = many_evals || iter_time > max_time || iter_limit
+        0         optimal      = normGx ≤ ϵₐ + ϵᵣ*normGx₀ || normFx ≤ ϵₐ + ϵᵣ*normFx₀
+        -         
+        -     end
+        0 
+        0     status = if optimal 
+        -         :first_order
+        0         elseif tired
+        0             if neval_residual(nlp) > max_eval
+        -                 :max_eval
+        0             elseif iter_time > max_time
+        0                 :max_time
+        0             elseif iter > max_iter
+        -                 :max_iter
+        -             else
+        0                 :unknown_tired
+        -             end
+        -         else
+        0         :unknown
+        0         end
+        - 
+        0     if disp_grad_obj
+      768         return GenericExecutionStats(nlp; 
+        -             status, 
+        -             solution = x,
+        -             objective = (1/2) * normFx^2,
+        -             dual_feas = normGx,
+        -             iter = iter, 
+        -             elapsed_time = iter_time), objectif, gradient
+        -     else
+        0         return GenericExecutionStats(nlp; 
+        -             status, 
+        -             solution = x,
+        -             objective = (1/2) * normFx^2,
+        -             dual_feas = normGx,
+        -             iter = iter, 
+        0             elapsed_time = iter_time) 
+        -     end
+        - end
+        - 
+        - 
+        - LM_test          = (nlp ; bool_grad_obj=false) -> LM_tst(nlp; disp_grad_obj = bool_grad_obj)
+        - LM_SPG           = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = SPG    , disp_grad_obj = bool_grad_obj)
+        - LM_Zhu           = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = Zhu    , disp_grad_obj = bool_grad_obj)
+        0 LM_Andrei        = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = Andrei , disp_grad_obj = bool_grad_obj)
+        - LM_SPG_alt       = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = SPG,    alternative_model = true, disp_grad_obj = bool_grad_obj)
+        - LM_Zhu_alt       = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = Zhu,    alternative_model = true, disp_grad_obj = bool_grad_obj)
+        0 LM_Andrei_alt    = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = Andrei, alternative_model = true, disp_grad_obj = bool_grad_obj)
+        - LM_SPG_quasi_nul_lin       = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = SPG,    approxD_quasi_nul_lin = true,  alternative_model = true, disp_grad_obj = bool_grad_obj)
+        - LM_Zhu_quasi_nul_lin       = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = Zhu,    approxD_quasi_nul_lin = true,  alternative_model = true, disp_grad_obj = bool_grad_obj)
+        0 LM_Andrei_quasi_nul_lin    = (nlp ; bool_grad_obj=false) -> LM_D(nlp; fctD = Andrei, approxD_quasi_nul_lin = true,  alternative_model = true, disp_grad_obj = bool_grad_obj)

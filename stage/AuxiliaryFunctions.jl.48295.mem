@@ -1,0 +1,54 @@
+        0 function compare_solvers(pb_sc,
+        -     dict_solvers;
+        -     type :: String ="grad",
+        -     save :: Bool = false)
+        - 
+      272     solvers_names = Dict(
+        -         LM_test => "LM_test", 
+        -         LM_SPG => "LM_SPG", 
+        -         LM_Zhu => "LM_zhu", 
+        -         LM_Andrei => "LM_Andrei", 
+        -         LM_SPG_alt => "LM_SPG_alt", 
+        -         LM_Zhu_alt => "LM_Zhu_alt", 
+        -         LM_Andrei_alt => "LM_Andrei_alt",
+        -         LM_SPG_quasi_nul_lin => "LM_SPG_quasi_nul_lin",
+        -         LM_Zhu_quasi_nul_lin => "LM_Zhu_quasi_nul_lin",
+        -         LM_Andrei_quasi_nul_lin => "LM_Andrei_quasi_nul_lin"
+        -         )
+       80     solvers = collect(values(dict_solvers))
+        - 
+        0     for k = 1:lastindex(solvers) 
+        0         solver = solvers[k]
+        0         name = solvers_names[solver]
+        - 
+        0         stats, obj, grad = solver(pb_sc; bool_grad_obj=true)
+        0         to_plot = (type == "grad") ? grad : obj
+       96         rangs = 1:length(grad)
+        0         if k == 1
+      136             plot(rangs, to_plot, xlabel="k", ylabel=type,yaxis =:log10, label=name, title="problème : "*pb_sc.meta.name)
+        -         else
+       64             plot!(rangs, to_plot, label=name)
+        -         end
+        0         reset!(pb_sc)
+        0     end
+        0     display(current())
+        0     save && savefig("Pictures/Comparaison/"*pb_sc.meta.name*"_"*type*".svg")
+        - end
+        - 
+        - 
+        - function pp(dict_solvers, 
+        -     problems; 
+        -     save :: Bool = false
+        -     )
+        - 
+        -     stats = bmark_solvers(dict_solvers, problems, skipif = problem -> (problem.meta.ncon == 0) ? false : true)
+        - 
+        -     cols = [:name, :status, :objective, :elapsed_time, :iter]
+        -     for solver ∈ keys(dict_solvers)
+        -         pretty_stats(stats[solver][!, cols])
+        -     end
+        -     cost(df) = (df.status .!= :first_order) * Inf + df.iter
+        -     performance_profile(stats, cost)
+        -     display(current())
+        -     save && savefig("Pictures/Performance_profiles/LMD_Andrei_quasinullin.svg")
+        - end

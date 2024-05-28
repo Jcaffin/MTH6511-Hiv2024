@@ -1,34 +1,34 @@
-# using LinearAlgebra, NLPModels, Printf, Logging, SolverCore, Test, ADNLPModels, SparseArrays, QRMumps
-# using JSOSolvers, SolverBenchmark, Plots
-# using NLSProblems
+using LinearAlgebra, NLPModels, Printf, Logging, SolverCore, Test, ADNLPModels, SparseArrays, QRMumps
+using JSOSolvers, SolverBenchmark, Plots
+using NLSProblems
 
 include("LM.jl")
 include("AuxiliaryFunctions.jl")
-include("test.jl")
+
 
 
 
 
 dict_solvers = Dict(
-    # :LM_wo_D => LM_wo_D,
     # :LM_test => LM_test,
     # :LM_SPG => LM_SPG,
     # :LM_Zhu => LM_Zhu,
     :LM_Andrei => LM_Andrei,
     # :LM_SPG_alt => LM_SPG_alt,
     # :LM_Zhu_alt => LM_Zhu_alt,
-    # :LM_Andrei_alt => LM_Andrei_alt,
+    :LM_Andrei_alt => LM_Andrei_alt,
     # :LM_SPG_quasi_nul_lin => LM_SPG_quasi_nul_lin,
     # :LM_Zhu_quasi_nul_lin => LM_Zhu_quasi_nul_lin,
-    # :LM_Andrei_quasi_nul_lin => LM_Andrei_quasi_nul_lin,
+    :LM_Andrei_quasi_nul_lin => LM_Andrei_quasi_nul_lin,
     )
 
     
 problems_names = setdiff(names(NLSProblems), [:NLSProblems])
 problems = (eval((problem))() for problem ∈ problems_names)
 pb = collect(problems)
-pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
+# pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
 pb_sc = filter(problem -> problem.meta.name == "mgh10", pb)
+# LM_D(pb_sc[1]; verbose = true)
 
 ###################### Test sur un problème unique #######################
 
