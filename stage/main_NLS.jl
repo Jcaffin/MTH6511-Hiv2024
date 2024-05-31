@@ -13,26 +13,26 @@ dict_solvers = Dict(
     # :LM_test => LM_test,
     # :LM_SPG => LM_SPG,
     # :LM_Zhu => LM_Zhu,
-    :LM_Andrei => LM_Andrei,
+    # :LM_Andrei => LM_Andrei,
     # :LM_SPG_alt => LM_SPG_alt,
     # :LM_Zhu_alt => LM_Zhu_alt,
     :LM_Andrei_alt => LM_Andrei_alt,
     # :LM_SPG_quasi_nul_lin => LM_SPG_quasi_nul_lin,
     # :LM_Zhu_quasi_nul_lin => LM_Zhu_quasi_nul_lin,
-    :LM_Andrei_quasi_nul_lin => LM_Andrei_quasi_nul_lin,
-    )
+    # :LM_Andrei_quasi_nul_lin => LM_Andrei_quasi_nul_lin,
+    );
 
     
-problems_names = setdiff(names(NLSProblems), [:NLSProblems])
-problems = (eval((problem))() for problem ∈ problems_names)
-pb = collect(problems)
-# pb_sc = filter(problem -> problem.meta.ncon == 0, pb)
-pb_sc = filter(problem -> problem.meta.name == "mgh10", pb)
+problems_names = setdiff(names(NLSProblems), [:NLSProblems]);
+problems = (eval((problem))() for problem ∈ problems_names);
+pb = collect(problems);
+pb_sc = filter(problem -> (problem.meta.ncon == 0), pb);
+# pb_sc = filter(problem -> problem.meta.name == "mgh10", pb)
 # LM_D(pb_sc[1]; verbose = true)
 
 ###################### Test sur un problème unique #######################
 
-compare_solvers(pb_sc[1], dict_solvers; type = "obj", save = false)
+# compare_solvers(pb_sc[1], dict_solvers; type = "obj", save = false)
 
 ######################## Profils de performance #########################
 
@@ -42,6 +42,6 @@ compare_solvers(pb_sc[1], dict_solvers; type = "obj", save = false)
 
 ####################### Générer tous les graphes ########################
 
-# for k =1:length(pb_sc)
-#     compare_solvers(pb_sc[k], dict_solvers; type = "obj", save = true)
+# for k in eachindex(pb_sc)
+#     compare_solvers(pb_sc[k], dict_solvers; type = "obj", save = false)
 # end

@@ -1,7 +1,8 @@
 function compare_solvers(pb_sc,
     dict_solvers;
-    type :: String ="grad",
-    save :: Bool = false)
+    type    :: String ="grad",
+    save    :: Bool = false,
+    verbose :: Bool = true)
 
     solvers_names = Dict(
         LM_test => "LM_test", 
@@ -21,7 +22,7 @@ function compare_solvers(pb_sc,
         solver = solvers[k]
         name = solvers_names[solver]
 
-        stats, obj, grad = solver(pb_sc; bool_grad_obj=true)
+        stats, obj, grad = solver(pb_sc; bool_grad_obj=true, bool_verbose = verbose)
         to_plot = (type == "grad") ? grad : obj
         rangs = 1:length(grad)
         if k == 1
