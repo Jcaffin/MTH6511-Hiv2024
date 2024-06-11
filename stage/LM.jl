@@ -7,7 +7,7 @@ function maj_J(Jx, rows, cols, vals)
     return Jx
 end
 
-function argmin_q!(A, b, Fx, Jx, sqrt_DλI, spmat, d, λ, D, m, n, δ)
+function argmin_q!(A, b, Fx, Jx, sqrt_DλI, d, λ, D, m, n, δ, qrmumps)
     for i = 1:n
         sqrt_DλI[i,i] = sqrt(δ * D[i,i] + λ)
     end
@@ -15,11 +15,16 @@ function argmin_q!(A, b, Fx, Jx, sqrt_DλI, spmat, d, λ, D, m, n, δ)
     A[m+1:end, :] .= sqrt_DλI
     b[1:m]        .= Fx
     b .*= -1
-    
-    qrm_spmat_init!(spmat, A)
-    d .= qrm_spposv(spmat, b)
-    # QR = qr(A)
-    # d .= QR\(b)
+    if qrmumps
+        spmat = qrm_spmat_init(A)
+        spfct = qrm_analyse(spmat)
+        qrm_factorize!(spmat, spfct)
+        z = qrm_apply(spfct, b, transp='t')
+        d .= qrm_solve(spfct, z, transp='n')
+    else
+        QR = qr(A)
+        d .= QR\(b)
+    end
 end
 
 function SPG(D, s, y; ϵ = 1/100)
@@ -77,12 +82,12 @@ function is_quasi_nul(Fxi, Fx₋₁i, τ₁, τ₂)
     return quasi_nul
 end
 
-function is_quasi_lin(Fxi, Fx₋₁i, Jx₋₁i, d, τ₃)
-    quasi_lin = abs(Fxi - (Fx₋₁i + Jx₋₁i'*d))/(1+abs(Fxi)) < τ₃ ? true : false
+function is_quasi_lin(Fxi, Fx₋₁i, Jx₋₁i, d, τ₃, τ₄)
+    quasi_lin = abs(Fxi - (Fx₋₁i + Jx₋₁i'*d)) < τ₃ * abs(Fxi) + τ₄ ? true : false
     return quasi_lin
 end
 
-function LM_tst(nlp     :: AbstractNLSModel;
+function LM_tst(nlp   :: AbstractNLSModel;
     x0                :: AbstractVector = nlp.meta.x0, 
     ϵₐ                :: AbstractFloat = 1e-8,
     ϵᵣ                :: AbstractFloat = 1e-8,
@@ -243,10 +248,12 @@ function LM_D(nlp     :: AbstractNLSModel;
     τ₁                :: AbstractFloat = 1/100,
     τ₂                :: AbstractFloat = 1/100,
     τ₃                :: AbstractFloat = 1/100,
+    τ₄                :: AbstractFloat = 1/100,
     alternative_model      :: Bool = false,
     approxD_quasi_nul_lin  :: Bool = false,
     disp_grad_obj          :: Bool = false,
     verbose                :: Bool = false,
+    qrmumps                :: Bool = false,
     max_eval          :: Int = 1000, 
     max_time          :: AbstractFloat = 60.,
     max_iter          :: Int = typemax(Int64)
@@ -262,7 +269,7 @@ function LM_D(nlp     :: AbstractNLSModel;
     Fx₋₁ = similar(Fx)
     rows, cols = jac_structure_residual(nlp)
     vals       = jac_coord_residual(nlp, x)
-    Jx         = sparse(rows, cols, vals)  # Jx    = jac_residual(nlp, x)
+    Jx         = sparse(rows, cols, vals, nlp.nls_meta.nequ, nlp.meta.nvar)
     Jx₋₁  = similar(Jx)
     Gx    = Jx' * Fx
     #### ajout alternative_model ####
@@ -272,7 +279,6 @@ function LM_D(nlp     :: AbstractNLSModel;
         xᵃ    = similar(x)
         Fxᵃ   = similar(Fx)
     end
-    # δ    = alternative_model ? 0 : 1
     δ = 1
     ###### ajout quasi_lin_nul ######
     r = similar(Fx)
@@ -285,7 +291,7 @@ function LM_D(nlp     :: AbstractNLSModel;
     normFx  = normFx₀
     
 
-    fx = (1/2) * normFx^2
+    fx  = (1/2) * normFx^2
     m,n = size(Jx)
 
     #pré-allocations
@@ -295,18 +301,18 @@ function LM_D(nlp     :: AbstractNLSModel;
     sqrt_DλI = spdiagm(0 => ones(n))
     b        = zeros(Float64, m+n)
     qrm_init()
-    spmat = qrm_spmat_init(A)
 
-    iter = 0    
-    λ = 0
-    λ₀ = 1e-6
+    iter = 0 
+    λ₀ = 1e-6   
+    λ = λ₀
+    
 
     local D
     D = Diagonal(ones(n))
 
-    iter_time = 0
-    tired   = neval_residual(nlp) > max_eval || iter_time > max_time
-    status  = :unknown
+    iter_time  = 0
+    tired      = neval_residual(nlp) > max_eval || iter_time > max_time
+    status     = :unknown
     start_time = time()
     optimal    = normGx ≤ ϵₐ + ϵᵣ*normGx₀ || normFx ≤ ϵₐ + ϵᵣ*normFx₀
 
@@ -315,15 +321,15 @@ function LM_D(nlp     :: AbstractNLSModel;
     disp_grad_obj && (gradient = [normGx])
 
     verbose && @info log_header(
-        [:iter, :nf, :obj, :grad, :ρ, :status, :nd, :λ],
-        [Int, Int, Float64, Float64, Float64, String, Float64, Float64],
+        [:iter, :nf, :obj, :grad, :ρ, :status, :nd, :λ, :δ],
+        [Int, Int, Float64, Float64, Float64, String, String, Float64, Int],
         hdr_override=Dict(
-        :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ")
+        :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ", :δ => "δ")
         )
 
     while !(optimal || tired)
         ########## Calcul d (facto QR) ##########
-        argmin_q!(A, b, Fx, Jx, sqrt_DλI, spmat, d, λ, D, m, n, δ)
+        argmin_q!(A, b, Fx, Jx, sqrt_DλI, d, λ, D, m, n, δ, qrmumps)
         xᵖ     .= x .+ d
         residual!(nlp, xᵖ,Fxᵖ)
         fxᵖ  = (1/2) * norm(Fxᵖ)^2
@@ -335,7 +341,7 @@ function LM_D(nlp     :: AbstractNLSModel;
             qxᵖ  = (1/2) * (norm(JxdFx)^2 + δ * dDd)
             qᵃxᵖ = (1/2) * (norm(JxdFx)^2 + (1-δ) * dDd)
             if abs(qxᵖ - fxᵖ) > γ₁ * abs(qᵃxᵖ - fxᵖ) 
-                argmin_q!(A, b, Fx, Jx, sqrt_DλI, spmat, d, λ, D, m, n, 1-δ)
+                argmin_q!(A, b, Fx, Jx, sqrt_DλI, d, λ, D, m, n, 1-δ, qrmumps)
                 xᵃ .= x .+ d
                 residual!(nlp, xᵃ, Fxᵃ)
                 fxᵃ = (1/2)* norm(Fxᵃ)^2
@@ -350,7 +356,6 @@ function LM_D(nlp     :: AbstractNLSModel;
         else
             qxᵖ  = (1/2) * (norm(JxdFx)^2 + dDd)
         end
-
 
         ρ = (fx - fxᵖ) / (fx - qxᵖ)
 
@@ -377,7 +382,7 @@ function LM_D(nlp     :: AbstractNLSModel;
             if approxD_quasi_nul_lin
                 for i = 1:lastindex(Fx)
                     quasi_nul = is_quasi_nul(Fx[i], Fx₋₁[i], τ₁, τ₂)
-                    quasi_lin = is_quasi_lin(Fx[i], Fx₋₁[i], Jx₋₁[i,:], d, τ₃)
+                    quasi_lin = is_quasi_lin(Fx[i], Fx₋₁[i], Jx₋₁[i,:], d, τ₃, τ₄)
                     if quasi_lin || quasi_nul
                         r[i] = 0
                     else
@@ -399,9 +404,10 @@ function LM_D(nlp     :: AbstractNLSModel;
             end
         end
 
-        disp_grad_obj && push!(objectif, normFx)
-        disp_grad_obj && push!(gradient, normGx)
-        verbose && @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm(d), λ])
+        disp_grad_obj && (normFx !=0) && push!(objectif, normFx)
+        disp_grad_obj && (normGx !=0) && push!(gradient, normGx)
+        norm_d_str = @sprintf("%.17f", norm(d))
+        verbose && @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm_d_str, λ, δ])
 
         iter_time    = time() - start_time
         iter        += 1
@@ -450,13 +456,16 @@ function LM_D(nlp     :: AbstractNLSModel;
 end
 
 
-LM_test                    = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_tst(nlp; disp_grad_obj = bool_grad_obj, verbose = bool_verbose)
-LM_SPG                     = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = SPG   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose)
-LM_Zhu                     = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Zhu   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose)
-LM_Andrei                  = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, disp_grad_obj = bool_grad_obj, verbose = bool_verbose)
-LM_SPG_alt                 = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = SPG   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true)
-LM_Zhu_alt                 = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Zhu   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true)
-LM_Andrei_alt              = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true)
-LM_SPG_quasi_nul_lin       = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = SPG   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true, approxD_quasi_nul_lin = true)
-LM_Zhu_quasi_nul_lin       = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Zhu   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true, approxD_quasi_nul_lin = true)
-LM_Andrei_quasi_nul_lin    = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true, approxD_quasi_nul_lin = true)
+LM_test                            = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_tst(nlp; disp_grad_obj = bool_grad_obj, verbose = bool_verbose)
+LM_SPG                             = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = SPG   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose)
+LM_Zhu                             = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Zhu   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose)
+LM_Andrei                          = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, disp_grad_obj = bool_grad_obj, verbose = bool_verbose)
+LM_Andrei_qrmumps                  = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, disp_grad_obj = bool_grad_obj, verbose = bool_verbose, qrmumps = true)
+LM_SPG_alt                         = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = SPG   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true)
+LM_Zhu_alt                         = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Zhu   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true)
+LM_Andrei_alt                      = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true)
+LM_Andrei_alt_qrmumps              = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true, qrmumps = true)
+LM_SPG_quasi_nul_lin               = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = SPG   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true, approxD_quasi_nul_lin = true)
+LM_Zhu_quasi_nul_lin               = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Zhu   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true, approxD_quasi_nul_lin = true)
+LM_Andrei_quasi_nul_lin            = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true, approxD_quasi_nul_lin = true)
+LM_Andrei_quasi_nul_lin_qrmumps    = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = false, approxD_quasi_nul_lin = true,  qrmumps = true)
