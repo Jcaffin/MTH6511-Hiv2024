@@ -45,3 +45,6 @@ compare_solvers(pb_sc[1], dict_solvers; type = "obj", save = false)
 #     compare_solvers(pb_sc[k], dict_solvers; type = "obj", save = true)
 #     sleep(1.5)
 # end
+
+# 0.00376163450836752
+# 0.00016248756554137
