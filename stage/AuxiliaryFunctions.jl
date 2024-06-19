@@ -20,7 +20,7 @@ function write_dense_vector(v::Vector, filename::String, var_name::String)
     end
 end
 
-function write_sparse_matrix_as_dense(A::SparseMatrixCSC, filename::String, var_name::String)
+function write_sparse_matrix(A::SparseMatrixCSC, filename::String, var_name::String)
     open(filename, "a") do file
         rows, cols, vals = findnz(A)
         n = length(rows)
@@ -66,15 +66,15 @@ function compare_solvers(pb_sc,
         LM_SPG => "LM_SPG", 
         LM_Zhu => "LM_zhu", 
         LM_Andrei => "LM_Andrei", 
-        LM_Andrei_qrmumps => "LM_Andrei_qrmumps",
+        LM_Andrei_λD => "LM_Andrei_λD",
         LM_SPG_alt => "LM_SPG_alt", 
         LM_Zhu_alt => "LM_Zhu_alt", 
         LM_Andrei_alt => "LM_Andrei_alt",
-        LM_Andrei_alt_qrmumps => "LM_Andrei_alt_qrmumps",
+        LM_Andrei_alt_λD => "LM_Andrei_alt_λD",
         LM_SPG_quasi_nul_lin => "LM_SPG_quasi_nul_lin",
         LM_Zhu_quasi_nul_lin => "LM_Zhu_quasi_nul_lin",
         LM_Andrei_quasi_nul_lin => "LM_Andrei_quasi_nul_lin",
-        LM_Andrei_quasi_nul_lin_qrmumps => "LM_Andrei_quasi_nul_lin_qrmumps"
+        LM_Andrei_quasi_nul_lin_λD => "LM_Andrei_quasi_nul_lin_λD",
         )
     solvers = collect(values(dict_solvers))
 
@@ -112,5 +112,5 @@ function pp(dict_solvers,
     cost(df) = (df.status .!= :first_order) * Inf + df.iter
     performance_profile(stats, cost)
     display(current())
-    save && savefig("Pictures/Performance_profiles/LMD_SPG_Zhu_Andrei.svg")
+    save && savefig("Pictures/Performance_profiles/LMD_Andrei_quasi_nul_lin_lambdaD.svg")
 end

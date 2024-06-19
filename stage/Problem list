@@ -1,0 +1,35 @@
+Rosenbrock function
+-- Freudenstein and Roth function
+Powell badly scaled function
+Brown badly scaled function
+Beale function
+-- Jennrich and Sampson function
+Helical valley function
+-- Bard function
+Gaussian function
+-- Meyer function
+Gulf research and development function
+Box three-dimensional function
+Powell singular function
+Wood function
+-- Kowalik and Osborne function
+-- Brown and Dennis function
+-- Osborne 1 function
+Biggs EXP6 function
+-- Osborne 2 function
+Watson function
+Extended Rosenbrock function
+Extended Powell singular function
+-- Penalty function 1
+-- Penalty function 2
+Variably dimensioned function
+-- Trigonometric function
+Brown almost-linear function
+Discrete boundary value function
+Discrete integral equation function
+-- Broyden tridiagonal function
+-- Broyden banded function
+-- Linear function-full rank
+-- Linear function-rank 1
+-- Linear function-rank 1 with zero columns and rows
+Chebyquad function
