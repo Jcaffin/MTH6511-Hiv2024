@@ -7,12 +7,12 @@ function maj_J(Jx, Jrows, Jcols, Jvals)
     return Jx
 end
 
-function argmin_q2!(Arows, Acols, Avals, b, Fx, Jvals, sqrt_DλI, d, λ, D, m, n, nnzj, δ, is_λD)
+function argmin_q!(Arows, Acols, Avals, b, Fx, Jvals, sqrt_DλI, d, λ, D, m, n, nnzj, δ, is_λD)
     for i = 1:n
         if is_λD
-            sqrt_DλI[i] = sqrt(δ * λ * D[i,i])
+            sqrt_DλI[i] = sqrt(δ * λ * D[i])
         else
-            sqrt_DλI[i] = sqrt(δ * D[i,i] + λ)
+            sqrt_DλI[i] = sqrt(δ * D[i] + λ)
         end
     end
     Avals[1:nnzj]       .= Jvals
@@ -33,7 +33,7 @@ function SPG(D, s, y, n, ϵₜ)
     if non_nul
         σ  = sty /ss
         for i = 1:n
-            D[i,i]  = σ
+            D[i]  = σ
         end
     end
     return D
@@ -42,14 +42,14 @@ end
 function Zhu(D, s, y, n, ϵₜ)
     tr   = sum(si^4 for si ∈ s)
     sy   = s' * y
-    sDs = sum(s[i]^2 * D[i, i] for i = 1 : n)
+    sDs = sum(s[i]^2 * D[i] for i = 1 : n)
     frac  = (sy - sDs) / tr
     for i = 1:n
-        Di = D[i,i] + frac * s[i]^2
+        Di = D[i] + frac * s[i]^2
         if Di > ϵₜ
-            D[i,i] = Di
+            D[i] = Di
         else
-            D[i,i] = 1
+            D[i] = 1
         end
     end
     return D
@@ -59,15 +59,15 @@ function Andrei(D, s, y, n, ϵₜ)
     tr   = sum(si^4 for si ∈ s)
     sy   = s' * y 
     ss   = s' * s
-    sDs  = s' * D * s
+    sDs  = sum(s[i]^2 * D[i] for i = 1 : n)
     frac = (sy + ss - sDs)/tr
 
     for i = 1:n
-        Di = D[i,i] + frac * s[i]^2 - 1
+        Di = D[i] + frac * s[i]^2 - 1
         if Di > ϵₜ
-            D[i,i] = Di
+            D[i] = Di
         else
-            D[i,i] = 1
+            D[i] = 1
         end
     end
     return D
@@ -253,7 +253,6 @@ function LM_D(nlp     :: AbstractNLSModel;
     max_time          :: AbstractFloat = 60.,
     max_iter          :: Int = typemax(Int64)
     )
-    filename = "./stage/stockage_sparse"
     ################ On évalue F(x₀) et J(x₀) ################
     m,n  = nlp.nls_meta.nequ, nlp.meta.nvar
 
@@ -286,10 +285,10 @@ function LM_D(nlp     :: AbstractNLSModel;
     normGx  = normGx₀
     normFx  = normFx₀
 
-    fx  = normFx^2 / 2
+    fx   = normFx^2 / 2
     iter = 0 
-    λ₀ = 1e-6   
-    λ = is_λD ? 1 : λ₀
+    λ₀   = 1e-6   
+    λ    = is_λD ? 1 : λ₀
 
     #pré-allocations
     yk₋₁ = zeros(n)
@@ -308,7 +307,7 @@ function LM_D(nlp     :: AbstractNLSModel;
 
 
     local D
-    D = Diagonal(ones(n))
+    D = ones(n)
 
     iter_time  = 0
     tired      = neval_residual(nlp) > max_eval || iter_time > max_time
@@ -329,19 +328,20 @@ function LM_D(nlp     :: AbstractNLSModel;
 
     while !(optimal || tired)
         ########## Calcul d (facto QR) ##########
-        argmin_q2!(Arows, Acols, Avals, b, Fx, Jvals, sqrt_DλI, d, λ, D, m, n, nnzj, δ, is_λD)
-        xᵖ     .= x .+ d
+        argmin_q!(Arows, Acols, Avals, b, Fx, Jvals, sqrt_DλI, d, λ, D, m, n, nnzj, δ, is_λD)
+        xᵖ  .= x .+ d
         residual!(nlp, xᵖ,Fxᵖ)
         fxᵖ  = norm(Fxᵖ)^2 / 2
         
         ##### sélection du modèle q adéquat #####
         JxdFx .= Jx * d + Fx
-        dDd    = d'*D*d
+        dDd   = sum(d[i]^2 * D[i] for i = 1 : n)
+        
         if alternative_model
             qxᵖ  = (norm(JxdFx)^2 + δ * dDd) / 2
             qᵃxᵖ = (norm(JxdFx)^2 + (1-δ) * dDd) / 2
-            if abs(qxᵖ - fxᵖ) > γ₁ * abs(qᵃxᵖ - fxᵖ) 
-                argmin_q2!(Arows, Acols, Avals, b, Fx, Jvals, sqrt_DλI, d, λ, D, m, n, nnzj, 1-δ, is_λD)
+            if abs(qxᵖ - fxᵖ) > γ₁ * abs(qᵃxᵖ - fxᵖ)
+                argmin_q!(Arows, Acols, Avals, b, Fx, Jvals, sqrt_DλI, d, λ, D, m, n, nnzj, 1-δ, is_λD)
                 xᵃ .= x .+ d
                 residual!(nlp, xᵃ, Fxᵃ)
                 fxᵃ = norm(Fxᵃ)^2 / 2

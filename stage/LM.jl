@@ -89,7 +89,7 @@ function LM_tst(nlp   :: AbstractNLSModel;
     η₂                :: AbstractFloat = 2/3, 
     σ₁                :: AbstractFloat = 10., 
     σ₂                :: AbstractFloat = 1/2,
-    disp_grad_obj     :: Bool = false,
+    save_df           :: Bool = false,
     verbose           :: Bool = false,
     max_eval          :: Int = 100000, 
     max_time          :: AbstractFloat = 3600.,
@@ -126,15 +126,15 @@ function LM_tst(nlp   :: AbstractNLSModel;
     start_time = time()
     optimal    = normGx ≤ ϵₐ + ϵᵣ*normGx₀ || normFx ≤ ϵₐ + ϵᵣ*normFx₀
 
-    #################### Tracé des graphes ###################
-    objectif = [normFx]
-    gradient = [normGx]
+    df = DataFrame("itérations" => Any[], "évaluations" => Any[], "F" => Any[], "G" => Any[], "ρ" => Any[],
+    "status" => Any[], "d" => Any[])
+    push!(df, Any[iter, neval_residual(nlp), normFx, normGx, 1, status, 0])
 
     verbose && @info log_header(
-        [:iter, :nf, :obj, :grad, :ρ, :status, :nd, :λ],
-        [Int, Int, Float64, Float64, Float64, String, Float64, Float64],
+        [:iter, :nf, :obj, :grad, :ρ, :status, :nd],
+        [Int, Int, Float64, Float64, Float64, String, Float64],
         hdr_override=Dict(
-        :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ")
+        :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖")
         )
 
     while !(optimal || tired)
@@ -179,10 +179,8 @@ function LM_tst(nlp   :: AbstractNLSModel;
             end
         end
 
-        push!(objectif,normFx)
-        push!(gradient, normGx)
-
-        verbose && @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm(d), λ])
+        verbose && @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, ρ, status])
+        push!(df, Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm(d)])
 
         iter_time    = time() - start_time
         iter        += 1
@@ -210,14 +208,14 @@ function LM_tst(nlp   :: AbstractNLSModel;
         :unknown
         end
 
-    if disp_grad_obj
+    if save_df
         return GenericExecutionStats(nlp; 
             status, 
             solution = x,
             objective = normFx^2 / 2,
             dual_feas = normGx,
             iter = iter, 
-            elapsed_time = iter_time), objectif, gradient
+            elapsed_time = iter_time), df
     else
         return GenericExecutionStats(nlp; 
             status, 
@@ -246,7 +244,7 @@ function LM_D(nlp     :: AbstractNLSModel;
     τ₄                :: AbstractFloat = 1/100,
     alternative_model      :: Bool = false,
     approxD_quasi_nul_lin  :: Bool = false,
-    disp_grad_obj          :: Bool = false,
+    save_df       :: Bool = false,
     is_λD                  :: Bool = false,
     verbose                :: Bool = false,
     max_eval          :: Int = 1000, 
@@ -315,9 +313,12 @@ function LM_D(nlp     :: AbstractNLSModel;
     start_time = time()
     optimal    = normGx ≤ ϵₐ + ϵᵣ*normGx₀ || normFx ≤ ϵₐ + ϵᵣ*normFx₀
 
-    #################### Tracé des graphes ###################
-    disp_grad_obj && (objectif = [normFx])
-    disp_grad_obj && (gradient = [normGx])
+    ################## Gestion de l'affichage ################
+    
+
+    df = DataFrame("itérations" => Any[], "évaluations" => Any[], "F" => Any[], "G" => Any[], "ρ" => Any[],
+               "status" => Any[], "d" => Any[], "λ" => Any[], "δ" => Any[])
+    push!(df, Any[iter, neval_residual(nlp), normFx, normGx, 1, status, "0", λ, δ])
 
     verbose && @info log_header(
         [:iter, :nf, :obj, :grad, :ρ, :status, :nd, :λ, :δ],
@@ -325,7 +326,6 @@ function LM_D(nlp     :: AbstractNLSModel;
         hdr_override=Dict(
         :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ", :δ => "δ")
         )
-
     while !(optimal || tired)
         ########## Calcul d (facto QR) ##########
         argmin_q!(Arows, Acols, Avals, b, Fx, Jvals, sqrt_DλI, d, λ, D, m, n, nnzj, δ, is_λD)
@@ -403,10 +403,9 @@ function LM_D(nlp     :: AbstractNLSModel;
             end
         end
 
-        disp_grad_obj && (normFx !=0) && push!(objectif, normFx)
-        disp_grad_obj && (normGx !=0) && push!(gradient, normGx)
         norm_d_str = @sprintf("%.17f", norm(d))
         verbose && @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm_d_str, λ, δ])
+        push!(df, Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm_d_str, λ, δ])
 
         iter_time    = time() - start_time
         iter        += 1
@@ -435,14 +434,14 @@ function LM_D(nlp     :: AbstractNLSModel;
         :unknown
         end
 
-    if disp_grad_obj
+    if save_df
         return GenericExecutionStats(nlp; 
             status, 
             solution = x,
             objective = normFx^2 / 2,
             dual_feas = normGx,
             iter = iter, 
-            elapsed_time = iter_time), objectif, gradient
+            elapsed_time = iter_time), df
     else
         return GenericExecutionStats(nlp; 
             status, 
@@ -455,16 +454,20 @@ function LM_D(nlp     :: AbstractNLSModel;
 end
 
 
-LM_test                            = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_tst(nlp; disp_grad_obj = bool_grad_obj, verbose = bool_verbose)
-LM_SPG                             = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = SPG   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose)
-LM_Zhu                             = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Zhu   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose)
-LM_Andrei                          = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, disp_grad_obj = bool_grad_obj, verbose = bool_verbose)
-LM_Andrei_λD                       = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, disp_grad_obj = bool_grad_obj, verbose = bool_verbose, is_λD = true)
-LM_SPG_alt                         = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = SPG   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true)
-LM_Zhu_alt                         = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Zhu   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true)
-LM_Andrei_alt                      = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true)
-LM_Andrei_alt_λD                   = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true, is_λD = true)
-LM_SPG_quasi_nul_lin               = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = SPG   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true, approxD_quasi_nul_lin = true)
-LM_Zhu_quasi_nul_lin               = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Zhu   , disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true, approxD_quasi_nul_lin = true)
-LM_Andrei_quasi_nul_lin            = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true, approxD_quasi_nul_lin = true)
-LM_Andrei_quasi_nul_lin_λD         = (nlp ; bool_grad_obj=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, disp_grad_obj = bool_grad_obj, verbose = bool_verbose, alternative_model = true, approxD_quasi_nul_lin = true, is_λD = true)
+LM_test                            = (nlp ; bool_df=false, bool_verbose = false) -> LM_tst(nlp; save_df = bool_df, verbose = bool_verbose)
+LM_SPG                             = (nlp ; bool_df=false, bool_verbose = false) -> LM_D(nlp; fctD = SPG   , save_df = bool_df, verbose = bool_verbose)
+LM_Zhu                             = (nlp ; bool_df=false, bool_verbose = false) -> LM_D(nlp; fctD = Zhu   , save_df = bool_df, verbose = bool_verbose)
+LM_Andrei                          = (nlp ; bool_df=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, save_df = bool_df, verbose = bool_verbose)
+LM_SPG_λD                          = (nlp ; bool_df=false, bool_verbose = false) -> LM_D(nlp; fctD = SPG   , save_df = bool_df, verbose = bool_verbose, is_λD = true)
+LM_Zhu_λD                          = (nlp ; bool_df=false, bool_verbose = false) -> LM_D(nlp; fctD = Zhu   , save_df = bool_df, verbose = bool_verbose, is_λD = true)
+LM_Andrei_λD                       = (nlp ; bool_df=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, save_df = bool_df, verbose = bool_verbose, is_λD = true)
+LM_SPG_alt                         = (nlp ; bool_df=false, bool_verbose = false) -> LM_D(nlp; fctD = SPG   , save_df = bool_df, verbose = bool_verbose, alternative_model = true)
+LM_Zhu_alt                         = (nlp ; bool_df=false, bool_verbose = false) -> LM_D(nlp; fctD = Zhu   , save_df = bool_df, verbose = bool_verbose, alternative_model = true)
+LM_Andrei_alt                      = (nlp ; bool_df=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, save_df = bool_df, verbose = bool_verbose, alternative_model = true)
+LM_SPG_alt_λD                      = (nlp ; bool_df=false, bool_verbose = false) -> LM_D(nlp; fctD = SPG   , save_df = bool_df, verbose = bool_verbose, alternative_model = true, is_λD = true)
+LM_Zhu_alt_λD                      = (nlp ; bool_df=false, bool_verbose = false) -> LM_D(nlp; fctD = Zhu   , save_df = bool_df, verbose = bool_verbose, alternative_model = true, is_λD = true)
+LM_Andrei_alt_λD                   = (nlp ; bool_df=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, save_df = bool_df, verbose = bool_verbose, alternative_model = true, is_λD = true)
+LM_SPG_quasi_nul_lin               = (nlp ; bool_df=false, bool_verbose = false) -> LM_D(nlp; fctD = SPG   , save_df = bool_df, verbose = bool_verbose, alternative_model = true, approxD_quasi_nul_lin = true)
+LM_Zhu_quasi_nul_lin               = (nlp ; bool_df=false, bool_verbose = false) -> LM_D(nlp; fctD = Zhu   , save_df = bool_df, verbose = bool_verbose, alternative_model = true, approxD_quasi_nul_lin = true)
+LM_Andrei_quasi_nul_lin            = (nlp ; bool_df=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, save_df = bool_df, verbose = bool_verbose, alternative_model = true, approxD_quasi_nul_lin = true)
+LM_Andrei_quasi_nul_lin_λD         = (nlp ; bool_df=false, bool_verbose = false) -> LM_D(nlp; fctD = Andrei, save_df = bool_df, verbose = bool_verbose, alternative_model = true, approxD_quasi_nul_lin = true, is_λD = true)

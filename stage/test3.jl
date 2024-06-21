@@ -1,40 +1,30 @@
-using SparseArrays, QRMumps, Test, LinearAlgebra
+using Luxor
+using Plots
 
-m,n  = 5 , 13
+# Créer un plot simple
+x = 1:10
+y = rand(10)
+p = plot(x, y, title="Mon plot", label="Données", xlabel="X", ylabel="Y")
 
-Fx      = [-80.61017305526643, 10.606248341154838, 2.8284271247461903, 23.607675141438072, -52.32590180780452]
-b       = zeros(Float64, m+n)
-b[1:m] .= Fx
-b     .*= -1
+# Enregistrer le plot en tant qu'image temporaire
+temp_image_path = "temp_plot.png"
+savefig(p, temp_image_path)
 
-A1 = sparse([1, 6, 2, 7, 2, 8, 2, 9, 2, 5, 10, 2, 5, 11, 2, 3, 12, 3, 13, 3, 14,  5, 15,  3,  4, 16,  4, 17,  4, 18], 
-            [1, 1, 2, 2, 3, 3, 4, 4, 5, 5,  5, 6, 6,  6, 7, 7,  7, 8,  8, 9,  9, 10, 10, 11, 11, 11, 12, 12, 13, 13], 
-            [4.242640687119286, 1.000000499999875, 2.8284271247461903, 1.000000499999875, 2.8284271247461903, 1.000000499999875, 16.970562748477143, 1.000000499999875, -0.7067534044254388, 1.4142135623730951, 1.000000499999875, 0.7067534045431721, 2.8284271247461903, 1.000000499999875, 1.4142135623730951, 1.4142135623730951, 1.000000499999875, 1.4142135623730951, 1.000000499999875, -2.8284271247461903, 1.000000499999875, 15.556349186104047, 1.000000499999875, 1.4142135623730951, 1.4142135623730951, 1.000000499999875, 1.4142135623730951, 1.000000499999875, -7.0710678118654755, 1.000000499999875], 18, 13)
+# Définir la fonction pour créer le contenu du PDF
+function create_pdf()
+    # Définir la taille de la police
+    fontsize(20)
 
-A2rows = [1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3,  3,  4,  4,  4, 5, 5,  5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
-A2cols = [1, 2, 3, 2, 3, 4, 5, 6, 7, 7, 8, 9, 11, 11, 12, 13, 5, 6, 10, 1, 2, 3, 4,  5,  6,  7,  8,  9, 10, 11, 12, 13]
-A2vals = [4.242640687119286, 0.0, 0.0, 2.8284271247461903, 2.8284271247461903, 16.970562748477143, -0.7067534044254388, 0.7067534045431721, 1.4142135623730951, 1.4142135623730951, 1.4142135623730951, -2.8284271247461903, 1.4142135623730951, 1.4142135623730951, 1.4142135623730951, -7.0710678118654755, 1.4142135623730951, 2.8284271247461903, 15.556349186104047, 1.000000499999875, 1.000000499999875, 1.000000499999875, 1.000000499999875, 1.000000499999875, 1.000000499999875, 1.000000499999875, 1.000000499999875, 1.000000499999875, 1.000000499999875, 1.000000499999875, 1.000000499999875, 1.000000499999875]
-A2 = sparse(A2rows, A2cols, A2vals)
+    # Ajouter du texte sur le PDF
+    Luxor.text("Voici du texte à enregistrer.", Point(100, 750), halign=:left)
 
-@show A1 == A2
+    # Lire l'image temporaire et placer dans le PDF
+    img = readpng(temp_image_path)
+    placeimage(img, Point(300, 400), 1.0)
+end
 
+# Appel de la macro @pdf pour générer le PDF avec le contenu créé
+@pdf "document.pdf" 600 800 create_pdf()
 
-
-qrm_init()
-
-spmat1 = qrm_spmat_init(A2)
-spfct1 = qrm_analyse(spmat1)
-qrm_factorize!(spmat1, spfct1)
-z1 = qrm_apply(spfct1, b, transp='t')
-d1 = qrm_solve(spfct1, z1, transp='n')
-
-
-spmat2 = qrm_spmat_init(m+n, n, A2rows, A2cols, A2vals)
-spfct2 = qrm_analyse(spmat2)
-qrm_factorize!(spmat2, spfct2)
-z2 = qrm_apply(spfct2, b, transp='t')
-d2 = qrm_solve(spfct2, z2, transp='n')
-
-qrm_finalize()
-
-@show d1 == d2
+# Supprimer l'image temporaire
+rm(temp_image_path)

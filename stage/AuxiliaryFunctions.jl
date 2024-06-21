@@ -55,6 +55,32 @@ function write_sparse_matrix(A::SparseMatrixCSC, filename::String, var_name::Str
     end
 end
 
+function write_dataframe_to_doc(filename, df)
+    open(filename, "w") do file
+        println(file, join(names(df), "  "))
+        for row in eachrow(df)
+            println(file, join(row, "  "))
+        end
+    end
+end
+
+function generate_filename(nlp      :: AbstractNLSModel,
+    fctD                    :: Function,
+    alternative_model       :: Bool,
+    approxD_quasi_nul_lin   :: Bool,
+    )
+    parts = ["result", nlp.meta.name, string(nameof(fctD))]
+    if alternative_model
+        push!(parts, "AltMod")
+    end
+    if approxD_quasi_nul_lin
+        push!(parts, "AppQnl")
+    end
+        push!(parts, string(now()))
+        filename = join(parts, "_") * ".txt"
+    return filename
+end
+
 function compare_solvers(pb_sc,
     dict_solvers;
     type    :: String ="grad",
@@ -66,10 +92,14 @@ function compare_solvers(pb_sc,
         LM_SPG => "LM_SPG", 
         LM_Zhu => "LM_zhu", 
         LM_Andrei => "LM_Andrei", 
+        LM_SPG_λD => "LM_SPG_λD",
+        LM_Zhu_λD => "LM_Zhu_λD",
         LM_Andrei_λD => "LM_Andrei_λD",
         LM_SPG_alt => "LM_SPG_alt", 
         LM_Zhu_alt => "LM_Zhu_alt", 
         LM_Andrei_alt => "LM_Andrei_alt",
+        LM_SPG_alt_λD => "LM_SPG_alt_λD",
+        LM_Zhu_alt_λD => "LM_Zhu_alt_λD",
         LM_Andrei_alt_λD => "LM_Andrei_alt_λD",
         LM_SPG_quasi_nul_lin => "LM_SPG_quasi_nul_lin",
         LM_Zhu_quasi_nul_lin => "LM_Zhu_quasi_nul_lin",
@@ -83,7 +113,9 @@ function compare_solvers(pb_sc,
         name = solvers_names[solver]
         @show name
 
-        stats, obj, grad = solver(pb_sc; bool_grad_obj=true, bool_verbose = verbose)
+        stats, df = solver(pb_sc; bool_df=true, bool_verbose = verbose)
+        obj  = df[!,:F]
+        grad = df[!,:G]
         to_plot = (type == "grad") ? grad : obj
         rangs = 1:length(grad)
         if k == 1
@@ -112,5 +144,5 @@ function pp(dict_solvers,
     cost(df) = (df.status .!= :first_order) * Inf + df.iter
     performance_profile(stats, cost)
     display(current())
-    save && savefig("Pictures/Performance_profiles/LMD_Andrei_quasi_nul_lin_lambdaD.svg")
+    save && savefig("Pictures/Performance_profiles/test_D_alt_λD.svg")
 end
