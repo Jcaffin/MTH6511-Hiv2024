@@ -2,7 +2,7 @@
 
 julia_version = "1.10.4"
 manifest_format = "2.0"
-project_hash = "06033bcd8f16a18859be8bb02386c5e4e2e0981f"
+project_hash = "2aea17463d691ca7159596d90378c7d99048b805"
 
 [[deps.ADNLPModels]]
 deps = ["ColPack", "ForwardDiff", "LinearAlgebra", "NLPModels", "Requires", "ReverseDiff", "SparseArrays"]
@@ -957,12 +957,10 @@ deps = ["Libdl", "LinearAlgebra", "OpenBLAS32_jll", "Printf", "SparseArrays", "q
 git-tree-sha1 = "6364a570a47c13579e2b07f2285bfb71d0dc2703"
 uuid = "422b30a1-cc69-4d85-abe7-cc07b540c444"
 version = "0.2.6"
+weakdeps = ["SparseMatricesCOO"]
 
     [deps.QRMumps.extensions]
     QRMumpsSparseMatricesCOOExt = "SparseMatricesCOO"
-
-    [deps.QRMumps.weakdeps]
-    SparseMatricesCOO = "fa32481b-f100-4b48-8dc8-c62f61b13870"
 
 [[deps.Qt6Base_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Fontconfig_jll", "Glib_jll", "JLLWrappers", "Libdl", "Libglvnd_jll", "OpenSSL_jll", "Vulkan_Loader_jll", "Xorg_libSM_jll", "Xorg_libXext_jll", "Xorg_libXrender_jll", "Xorg_libxcb_jll", "Xorg_xcb_util_cursor_jll", "Xorg_xcb_util_image_jll", "Xorg_xcb_util_keysyms_jll", "Xorg_xcb_util_renderutil_jll", "Xorg_xcb_util_wm_jll", "Zlib_jll", "libinput_jll", "xkbcommon_jll"]
@@ -1098,6 +1096,12 @@ version = "1.2.1"
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 version = "1.10.0"
+
+[[deps.SparseMatricesCOO]]
+deps = ["LinearAlgebra", "SparseArrays", "Test", "UnicodePlots"]
+git-tree-sha1 = "f0e2ecac0b7d13e08d59f210c67696f9fdbfc2ca"
+uuid = "fa32481b-f100-4b48-8dc8-c62f61b13870"
+version = "0.2.2"
 
 [[deps.SpecialFunctions]]
 deps = ["IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]

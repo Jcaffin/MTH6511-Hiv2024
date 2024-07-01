@@ -1,17 +1,14 @@
 using BundleAdjustmentModels
 include("AuxiliaryFunctions.jl")
-include("test.jl")
+include("LM.jl")
 
 df = problems_df()
-filter_df = df[ ( df.nvar .≤ 34000 ), :]
-
-name = filter_df[1, :name]
-
-model = BundleAdjustmentModel(name)
+names = df[!,:name]
+nls = BundleAdjustmentModel(names[1])
 
 dict_solvers = Dict(
     # :LM_wo_D => LM_wo_D,
-    :LM_test => LM_test,
+    # :LM_test => LM_test,
     # :LM_SPG => LM_SPG,
     # :LM_Zhu => LM_Zhu,
     :LM_Andrei => LM_Andrei,
@@ -23,4 +20,6 @@ dict_solvers = Dict(
     :LM_Andrei_quasi_nul_lin => LM_Andrei_quasi_nul_lin,
     )
 
-compare_solvers(model, dict_solvers; type = "obj", save = true)
+filename = "result_"*nls.meta.name*"_"*string(now())*".txt"
+write_solvers_df_to_doc(nls, filename)
+# compare_solvers(model, dict_solvers; type = "obj", save = true)
