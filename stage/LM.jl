@@ -238,8 +238,8 @@ function LM_D(nlp     :: AbstractNLSModel;
     save_df                :: Bool = false,
     is_λD                  :: Bool = false,
     verbose                :: Bool = false,
-    max_eval          :: Int = 1000, 
-    max_time          :: AbstractFloat = 60.,
+    max_eval          :: Int = 100000, 
+    max_time          :: AbstractFloat = Inf,
     max_iter          :: Int = typemax(Int64)
     )
     ################ On évalue F(x₀) et J(x₀) ################

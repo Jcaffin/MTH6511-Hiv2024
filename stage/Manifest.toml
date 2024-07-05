@@ -2,7 +2,7 @@
 
 julia_version = "1.10.4"
 manifest_format = "2.0"
-project_hash = "2aea17463d691ca7159596d90378c7d99048b805"
+project_hash = "79624b1f6a02ac4ff73f778f22f059ac80d0847a"
 
 [[deps.ADNLPModels]]
 deps = ["ColPack", "ForwardDiff", "LinearAlgebra", "NLPModels", "Requires", "ReverseDiff", "SparseArrays"]
@@ -398,6 +398,18 @@ version = "1.3.14+0"
 git-tree-sha1 = "53bb909d1151e57e2484c3d1b53e19552b887fb2"
 uuid = "42e2da0e-8278-4e71-bc24-59509adca0fe"
 version = "1.0.2"
+
+[[deps.HSL]]
+deps = ["HSL_jll", "Libdl", "LinearAlgebra", "OpenBLAS32_jll", "SparseArrays"]
+git-tree-sha1 = "c5b95ac0b3bb0fc856b587b946fd2845e7fab8dd"
+uuid = "34c5aeac-e683-54a6-a0e9-6e0fdc586c50"
+version = "0.4.3"
+
+[[deps.HSL_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "653875e1750a6b1700f73c7814ff777f56aca624"
+uuid = "017b0a0e-03f4-516a-9b91-836bbd1904dd"
+version = "2.0.0+0"
 
 [[deps.HTTP]]
 deps = ["Base64", "CodecZlib", "ConcurrentUtilities", "Dates", "ExceptionUnwrapping", "Logging", "LoggingExtras", "MbedTLS", "NetworkOptions", "OpenSSL", "Random", "SimpleBufferStream", "Sockets", "URIs", "UUIDs"]
@@ -992,18 +1004,6 @@ version = "0.6.12"
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
 uuid = "189a3867-3050-52da-a836-e630ba90ab69"
 version = "1.2.2"
-
-[[deps.ReferenceBLAS32_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "7cff46127961c3cca0cedc3d0c66c487b0227642"
-uuid = "9e84b91c-71b0-5f24-acdc-49dbe8049396"
-version = "3.12.0+0"
-
-[[deps.ReferenceBLAS_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "43c6ad52a61a9f549b15b9ab6f9d179dd5aca582"
-uuid = "ee697234-451c-51c9-b102-303d89a9c3a0"
-version = "3.12.0+0"
 
 [[deps.RelocatableFolders]]
 deps = ["SHA", "Scratch"]

@@ -27,8 +27,8 @@ include("AuxiliaryFunctions.jl")
 df = problems_df()
 list_names = df[!,:name]
 function solve(nls; kwargs...)
-    filename = "Archives/result_"*nls.meta.name*"_"*string(now())*".txt"
+    filename = "Archives/result_"*nls.meta.name*".txt"
     write_solvers_df_to_doc(nls, filename; verbose = true, kwargs...)
 end
-
-solve(BundleAdjustmentModel(list_names[1]))
+pb_name = ""; 
+solve(BundleAdjustmentModel(pb_name))

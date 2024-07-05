@@ -1,1 +1,0 @@
-MODÈLE : Gauss-Newton
