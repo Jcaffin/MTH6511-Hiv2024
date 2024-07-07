@@ -59,165 +59,6 @@ function is_quasi_lin(Fxi, Fx₋₁i, Jx₋₁i, d, τ₃, τ₄)
     return abs(Fxi - (Fx₋₁i + Jx₋₁i'*d)) < τ₃ * abs(Fxi) + τ₄
 end
 
-function LM_tst(nlp   :: AbstractNLSModel;
-    x0                :: AbstractVector = nlp.meta.x0,
-    ϵₐ                :: AbstractFloat = 1e-8,
-    ϵᵣ                :: AbstractFloat = 1e-8,
-    η₁                :: AbstractFloat = 1e-3,
-    η₂                :: AbstractFloat = 2/3,
-    σ₁                :: AbstractFloat = 10.,
-    σ₂                :: AbstractFloat = 1/2,
-    save_df           :: Bool = false,
-    verbose           :: Bool = false,
-    max_eval          :: Int = 100000,
-    max_time          :: AbstractFloat = Inf,
-    max_iter          :: Int = typemax(Int64)
-    )
-
-    ################ On évalue F(x₀) et J(x₀) ################
-    m, n, nnzj = nlp.nls_meta.nequ, nlp.meta.nvar, nlp.nls_meta.nnzj
-    λ₀ = 1e-6
-    λ = λ₀
-
-    x   = copy(x0)
-    xᵖ  = similar(x)
-    d   = similar(x)
-    Fx  = residual(nlp, x)
-    Fxᵖ = similar(Fx)
-    Jxd₊Fx = similar(Fx)
-
-    Arows = Vector{Int}(undef, nnzj + n)
-    Acols = Vector{Int}(undef, nnzj + n)
-    Avals = Vector{Float64}(undef, nnzj + n)
-    Arows[nnzj+1:end]   .= [k for k = m+1:m+n]
-    Acols[nnzj+1:end]   .= [k for k = 1:n]
-    Jrows   = view(Arows, 1:nnzj)
-    Jcols   = view(Acols, 1:nnzj)
-    Jvals   = view(Avals, 1:nnzj)
-
-    jac_structure_residual!(nlp, Jrows, Jcols)
-    jac_coord_residual!(nlp, x, Jvals)
-    Jx = SparseMatrixCOO(m, n, Arows[1:nnzj], Acols[1:nnzj], Avals[1:nnzj])
-
-    Gx    = Jx' * Fx
-
-    normFx₀ = norm(Fx)
-    normGx₀ = norm(Gx)
-    normGx  = normGx₀
-    normFx  = normFx₀
-    fx = normFx^2 / 2
-
-    qrm_init()
-    spmat = qrm_spmat_init(m+n, n, Arows, Acols, Avals)
-    spfct = qrm_analyse(spmat)
-    b     = zeros(Float64, m+n)
-
-    iter = 0
-    iter_time = 0
-    tired   = neval_residual(nlp) > max_eval || iter_time > max_time
-    status  = :unknown
-    start_time = time()
-    optimal    = normGx ≤ ϵₐ + ϵᵣ*normGx₀ || normFx ≤ ϵₐ + ϵᵣ*normFx₀
-
-    save_df && (df = DataFrame(:iter => Int[], :nf => Int[], :F => Float64[], :G => Float64[], :ρ => Float64[],
-               :status => :String, :nd => Float64[]))
-    save_df && push!(df, Any[iter, neval_residual(nlp), normFx, normGx, 1, status, 0])
-
-    verbose && @info log_header(
-        [:iter, :nf, :obj, :grad, :ρ, :status, :nd],
-        [Int, Int, Float64, Float64, Float64, String, Float64],
-        hdr_override=Dict(
-        :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖")
-        )
-
-    while !(optimal || tired)
-        ########## Calcul d (facto QR) ##########
-        b[1:m] .= Fx
-        b     .*= -1
-        Avals[nnzj + 1:nnzj+n] .= sqrt(λ)
-        qrm_factorize!(spmat, spfct)
-        z = qrm_apply(spfct, b, transp='t')
-        d .= qrm_solve(spfct, z, transp='n')
-
-        xᵖ     .= x .+ d
-        residual!(nlp, xᵖ,Fxᵖ)
-        fxᵖ  = norm(Fxᵖ)^2 / 2
-
-        mul!(Jxd₊Fx, Jx, d)
-        Jxd₊Fx .+= Fx
-        qxᵖ  = (norm(Jxd₊Fx)^2) / 2
-
-
-        ρ = (fx - fxᵖ) / (fx - qxᵖ)
-
-        if ρ < η₁ #|| qxᵖ > fx
-            λ = max(λ₀, σ₁ * λ)
-            status = :increase_λ
-        else
-            ############ Mise à jour ############
-            x    .= xᵖ
-            Fx   .= Fxᵖ
-            jac_coord_residual!(nlp, x, Jvals)
-            Jx.vals .= Jvals
-            mul!(Gx,Jx',Fx)
-            normFx = norm(Fx)
-            normGx = norm(Gx)
-            fx      = normFx^2 / 2
-            
-            status = :success    
-            if ρ ≥ η₂
-                λ = σ₂ * λ
-            end
-        end
-
-        verbose && @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm(d)])
-        save_df && push!(df, Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm(d)])
-
-        iter_time    = time() - start_time
-        iter        += 1
-
-        many_evals   = neval_residual(nlp) > max_eval
-        iter_limit   = iter > max_iter
-        tired        = many_evals || iter_time > max_time || iter_limit
-        optimal      = normGx ≤ ϵₐ + ϵᵣ*normGx₀ || normFx ≤ ϵₐ + ϵᵣ*normFx₀
-        
-    end
-
-    status = if optimal 
-        :first_order
-        elseif tired
-            if neval_residual(nlp) > max_eval
-                :max_eval
-            elseif iter_time > max_time
-                :max_time
-            elseif iter > max_iter
-                :max_iter
-            else
-                :unknown_tired
-            end
-        else
-        :unknown
-        end
-
-    if save_df
-        return GenericExecutionStats(nlp; 
-            status, 
-            solution = x,
-            objective = normFx^2 / 2,
-            dual_feas = normGx,
-            iter = iter, 
-            elapsed_time = iter_time), df
-    else
-        return GenericExecutionStats(nlp; 
-            status, 
-            solution = x,
-            objective = normFx^2 / 2,
-            dual_feas = normGx,
-            iter = iter, 
-            elapsed_time = iter_time) 
-    end
-end
-
 function LM_D(nlp     :: AbstractNLSModel;
     x0                :: AbstractVector = nlp.meta.x0, 
     fctD              :: Function =  Andrei!,
@@ -233,13 +74,15 @@ function LM_D(nlp     :: AbstractNLSModel;
     τ₂                :: AbstractFloat = 1/100,
     τ₃                :: AbstractFloat = 1/100,
     τ₄                :: AbstractFloat = 1/100,
+    λ₀                :: AbstractFloat = 1e-6,  
     alternative_model      :: Bool = false,
     approxD_quasi_nul_lin  :: Bool = false,
     save_df                :: Bool = false,
     is_λD                  :: Bool = false,
+    is_LM                  :: Bool = false,
     verbose                :: Bool = false,
-    max_eval          :: Int = 100000, 
-    max_time          :: AbstractFloat = Inf,
+    max_eval          :: Int = 1000, 
+    max_time          :: AbstractFloat = 60.,
     max_iter          :: Int = typemax(Int64)
     )
     ################ On évalue F(x₀) et J(x₀) ################
@@ -254,14 +97,14 @@ function LM_D(nlp     :: AbstractNLSModel;
     
     Arows        = Vector{Int}(undef, nnzj + n)
     Acols        = Vector{Int}(undef, nnzj + n)
-    Avals        = Vector{Float64}(undef, nnzj + n)
+    Avals        = Vector{eltype(x0)}(undef, nnzj + n)
     Arows[nnzj+1:end]   .= [k for k = m+1:m+n]
     Acols[nnzj+1:end]   .= [k for k = 1:n]
     Avals[nnzj + 1:end] .= 1
     Jrows   = view(Arows, 1:nnzj)
     Jcols   = view(Acols, 1:nnzj)
     Jvals   = view(Avals, 1:nnzj)
-    D       = ones(n)
+    D       = is_LM ? zeros(eltype(x0), n) : ones(eltype(x0), n)
 
     jac_structure_residual!(nlp, Jrows, Jcols)
     jac_coord_residual!(nlp, x, Jvals)
@@ -271,10 +114,10 @@ function LM_D(nlp     :: AbstractNLSModel;
     JᵀF   = similar(Gx)
     ############ ajout alternative_model ############
     Jxd₊Fx = similar(Fx)
-    dDd   = 0
+    dDd   = zero(eltype(x0))
     alternative_model ? xᵃ = similar(x) : nothing
     alternative_model ? Fxᵃ = similar(Fx) : nothing
-    δ = 1
+    δ = is_LM ? 0 : 1
     ############## ajout quasi_lin_nul ##############
     approxD_quasi_nul_lin ? r = similar(Fx) : nothing
     approxD_quasi_nul_lin ? Fx₋₁ = similar(Fx) : nothing
@@ -286,24 +129,24 @@ function LM_D(nlp     :: AbstractNLSModel;
     normFx  = normFx₀
 
     fx  = normFx^2 / 2
-   
-    λ₀ = 1e-6   
     λ = is_λD ? 1 : λ₀
 
     ############## pré-allocations ##################
-    yk₋₁ = zeros(n)
-    sk₋₁ = zeros(n)
+    yk₋₁ = zeros(eltype(x0), n)
+    sk₋₁ = zeros(eltype(x0), n)
     qrm_init()
     spmat = qrm_spmat_init(m+n, n, Arows, Acols, Avals)
     spfct = qrm_analyse(spmat)
-    b     = zeros(Float64, m+n)
+    b     = fill!(similar(x0, m+n),0)
 
     iter = 0 
     iter_time  = 0
     tired      = neval_residual(nlp) > max_eval || iter_time > max_time
     status     = :unknown
     start_time = time()
-    optimal    = normGx ≤ ϵₐ + ϵᵣ*normGx₀ || normFx ≤ ϵₐ + ϵᵣ*normFx₀
+    ϵᵍ = ϵₐ + ϵᵣ*normGx₀
+    ϵᶠ = ϵₐ + ϵᵣ*normFx₀
+    optimal    = normGx ≤ ϵᵍ || normFx ≤ ϵᶠ
 
     ################## Gestion de l'affichage #################
     save_df && (df = DataFrame(:iter => Int[], :nf => Int[], :F => Float64[], :G => Float64[], :ρ => Float64[],
@@ -329,8 +172,8 @@ function LM_D(nlp     :: AbstractNLSModel;
         ##### sélection du modèle q adéquat #####
         mul!(Jxd₊Fx, Jx, d)
         Jxd₊Fx .+= Fx
-        dDd     = sum((d[i]^2) * D[i] for i = 1 : n)
-        if alternative_model
+        dDd     = is_LM ? zero(eltype(x0)) : sum((d[i]^2) * D[i] for i = 1 : n)
+        if alternative_model && !(is_LM)
             qxᵖ  = (norm(Jxd₊Fx)^2 + δ * dDd) / 2
             qᵃxᵖ = (norm(Jxd₊Fx)^2 + (1-δ) * dDd) / 2
             if abs(qxᵖ - fxᵖ) > γ₁ * abs(qᵃxᵖ - fxᵖ)
@@ -390,7 +233,7 @@ function LM_D(nlp     :: AbstractNLSModel;
                 yk₋₁ .-= JᵀF
             end
             sk₋₁ .= x .- x₋₁
-            fctD(D, sk₋₁, yk₋₁, n, ϵₜ)
+            is_LM ? nothing : fctD(D, sk₋₁, yk₋₁, n, ϵₜ)
             
             status = :success    
             if ρ ≥ η₂
@@ -407,7 +250,7 @@ function LM_D(nlp     :: AbstractNLSModel;
         many_evals   = neval_residual(nlp) > max_eval
         iter_limit   = iter > max_iter
         tired        = many_evals || iter_time > max_time || iter_limit
-        optimal      = normGx ≤ ϵₐ + ϵᵣ*normGx₀ || normFx ≤ ϵₐ + ϵᵣ*normFx₀
+        optimal      = normGx ≤ ϵᵍ || normFx ≤ ϵᶠ
         
     end
     qrm_finalize()
@@ -448,7 +291,7 @@ function LM_D(nlp     :: AbstractNLSModel;
 end
 
 
-LM_GN                              = (nlp ; kwargs...) -> LM_tst(nlp; save_df = false, verbose = false, kwargs...)
+LM                                 = (nlp ; kwargs...) -> LM_D(nlp; is_LM = true  , save_df = false, verbose = false, kwargs...)
 LM_SPG                             = (nlp ; kwargs...) -> LM_D(nlp; fctD = SPG!   , save_df = false, verbose = false, kwargs...)
 LM_Zhu                             = (nlp ; kwargs...) -> LM_D(nlp; fctD = Zhu!   , save_df = false, verbose = false, kwargs...)
 LM_Andrei                          = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andrei!, save_df = false, verbose = false, kwargs...)

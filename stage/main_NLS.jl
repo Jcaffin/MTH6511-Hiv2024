@@ -6,7 +6,7 @@ include("LM.jl")
 include("AuxiliaryFunctions.jl")
 
 dict_solvers = Dict(
-    :LM_GN => LM_GN,
+    :LM => LM,
     :LM_SPG => LM_SPG,
     :LM_Zhu => LM_Zhu,
     :LM_Andrei => LM_Andrei,
@@ -35,7 +35,7 @@ pb_mgh = [mgh02(), mgh06(), mgh08(), mgh10(), mgh15(), mgh16(), mgh17(), mgh19()
 # compare_solvers(pb_sc[14], dict_solvers; type = "obj", save = false)
 
 ######################## Profils de performance #########################
-pp(dict_solvers, pb_mgh; save_stats = true)
+pp(dict_solvers, pb_mgh; save_stats = false)
 
 ####################### Générer tous les graphes ########################
 # for k in eachindex(pb_sc)
