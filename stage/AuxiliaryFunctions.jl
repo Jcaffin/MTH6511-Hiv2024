@@ -62,8 +62,8 @@ function write_dataframe_to_doc(df::DataFrame, filename::String)
 end
 
 function write_solvers_df_to_doc(nls, filename::String; kwargs...)
-    write_msg_to_doc("MODÈLE : GN", filename)
-    stats1, df1 = LM_tst(nls; save_df = true, kwargs...)
+    write_msg_to_doc("MODÈLE : LM", filename)
+    stats1, df1 = LM_D(nlp; is_LM = true  , save_df = true, kwargs...)
     rename!(df1, :iter => "itérations", :nf => "évaluations", :F => "‖F(x)‖", :G => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ", :δ => "δ")
     write_dataframe_to_doc(df1, filename)
     write_msg_to_doc("Raison d'arrêt : "*String(stats1.status), filename)
@@ -339,27 +339,32 @@ function compare_solvers(pb_sc,
     save && savefig("Archives/Comparaisons/"*pb_sc.meta.name*"_"*type*".svg")
 end
 
+
 function pp(dict_solvers,
     problems; 
     save_stats :: Bool = false,
     kwargs...)
 
-    indicateur = "pp_all_eval"
-    file_txt = "Archives/Performance_profiles/"*indicateur*".txt"
-    file_svg = "Archives/Performance_profiles/"*indicateur*".svg"
+    indicateur = "pp_best_EVAL_JAC"
+    formatted_date = Dates.format(today(), "dd-mm-yyyy")
+    file_jld2 = "Archives/Performance_profiles/"*indicateur*"_"*formatted_date*".jld2"
+    file_svg = "Archives/Performance_profiles/"*indicateur*"_"*formatted_date*".svg"
 
     stats = bmark_solvers(dict_solvers, problems, skipif = problem -> (problem.meta.ncon == 0) ? false : true; kwargs...)
     cols = [:name, :status, :objective, :elapsed_time, :iter, :neval_residual]
+    save_stats && (dict = Dict())
     for solver ∈ keys(dict_solvers)
         pretty_stats(stats[solver][!, cols])
         @show String(solver)
-        save_stats && write_msg_to_doc("Solver : "*String(solver), file_txt)
-        save_stats && write_dataframe_to_doc(stats[solver][!, cols], file_txt)
+        save_stats && (dict[String(solver)] = stats[solver][!, cols])
     end
-    # cost(df) = (df.status .!= :first_order) * Inf + df.iter
-    cost(df) = (df.status .!= :first_order) * Inf + df.neval_residual
+    cost(df) = (df.status .!= :first_order) * Inf + df.neval_jac_residual
+
+    # Générer le profil de performance avec des couleurs personnalisées
     performance_profile(stats, cost)
+
     display(current())
+    save_stats && save(file_jld2, dict)
     save_stats && savefig(file_svg)
 end
 

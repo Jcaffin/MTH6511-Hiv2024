@@ -81,8 +81,8 @@ function LM_D(nlp     :: AbstractNLSModel;
     is_λD                  :: Bool = false,
     is_LM                  :: Bool = false,
     verbose                :: Bool = false,
-    max_eval          :: Int = 1000, 
-    max_time          :: AbstractFloat = 60.,
+    max_eval          :: Int = 100000, 
+    max_time          :: AbstractFloat = Inf,
     max_iter          :: Int = typemax(Int64)
     )
     ################ On évalue F(x₀) et J(x₀) ################
@@ -241,11 +241,11 @@ function LM_D(nlp     :: AbstractNLSModel;
             end
         end
 
-        verbose && @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm(d), λ, δ])
-        save_df && push!(df, Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm(d), λ, δ])
-
         iter_time    = time() - start_time
         iter        += 1
+
+        verbose && @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm(d), λ, δ])
+        save_df && push!(df, Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm(d), λ, δ])
 
         many_evals   = neval_residual(nlp) > max_eval
         iter_limit   = iter > max_iter

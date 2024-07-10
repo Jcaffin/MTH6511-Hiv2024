@@ -1,29 +1,35 @@
 # using LinearAlgebra, NLPModels, Printf, Logging, SolverCore, Test, ADNLPModels, SparseArrays, QRMumps
 # using JSOSolvers, SolverBenchmark, Plots, NLSProblems, SparseMatricesCOO
-# using Dates, DataFrames, PrettyTables
+# using Dates, DataFrames, PrettyTables, JLD2
 
 include("LM.jl")
 include("AuxiliaryFunctions.jl")
 
 dict_solvers = Dict(
-    :LM => LM,
-    :LM_SPG => LM_SPG,
-    :LM_Zhu => LM_Zhu,
-    :LM_Andrei => LM_Andrei,
-    :LM_SPG_λD => LM_SPG_λD,
-    :LM_Zhu_λD => LM_Zhu_λD,
-    :LM_Andrei_λD => LM_Andrei_λD,
+    # :LM => LM,
+    # :LM_SPG => LM_SPG,
+    # :LM_Zhu => LM_Zhu,
+    # :LM_Andrei => LM_Andrei,
+    # :LM_SPG_λD => LM_SPG_λD,
+    # :LM_Zhu_λD => LM_Zhu_λD,
+    # :LM_Andrei_λD => LM_Andrei_λD,
     :LM_SPG_alt => LM_SPG_alt,
     :LM_Zhu_alt => LM_Zhu_alt,
     :LM_Andrei_alt => LM_Andrei_alt,
-    :LM_SPG_alt_λD => LM_SPG_alt_λD,
-    :LM_Zhu_alt_λD => LM_Zhu_alt_λD,
-    :LM_Andrei_alt_λD => LM_Andrei_alt_λD,
+    # :LM_SPG_alt_λD => LM_SPG_alt_λD,
+    # :LM_Zhu_alt_λD => LM_Zhu_alt_λD,
+    # :LM_Andrei_alt_λD => LM_Andrei_alt_λD,
     # :LM_SPG_quasi_nul_lin => LM_SPG_quasi_nul_lin,
     # :LM_Zhu_quasi_nul_lin => LM_Zhu_quasi_nul_lin,
     # :LM_Andrei_quasi_nul_lin => LM_Andrei_quasi_nul_lin,
     # :LM_Andrei_quasi_nul_lin_λD => LM_Andrei_quasi_nul_lin_λD,
     );
+
+solver_colors = Dict(
+    "LM_SPG_alt" => :red,
+    "LM_Zhu_alt" => :blue,
+    "LM_Andrei_alt" => :red,
+)
     
 problems_names = setdiff(names(NLSProblems), [:NLSProblems]);
 problems = (eval((problem))() for problem ∈ problems_names);
@@ -35,7 +41,7 @@ pb_mgh = [mgh02(), mgh06(), mgh08(), mgh10(), mgh15(), mgh16(), mgh17(), mgh19()
 # compare_solvers(pb_sc[14], dict_solvers; type = "obj", save = false)
 
 ######################## Profils de performance #########################
-pp(dict_solvers, pb_mgh; save_stats = false)
+pp(dict_solvers, pb_mgh; solver_colors = solver_colors, save_stats = false)
 
 ####################### Générer tous les graphes ########################
 # for k in eachindex(pb_sc)
