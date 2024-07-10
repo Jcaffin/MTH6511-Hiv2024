@@ -81,7 +81,7 @@ function LM_D(nlp     :: AbstractNLSModel;
     is_λD                  :: Bool = false,
     is_LM                  :: Bool = false,
     verbose                :: Bool = false,
-    max_eval          :: Int = 100000, 
+    max_eval          :: Int = 100, 
     max_time          :: AbstractFloat = Inf,
     max_iter          :: Int = typemax(Int64)
     )

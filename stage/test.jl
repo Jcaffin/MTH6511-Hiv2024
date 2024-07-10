@@ -1,20 +1,20 @@
 
-function LM_test(nlp :: AbstractNLSModel{T};
-    x0                :: AbstractVector{T} = nlp.meta.x0, 
-    fctD              :: Function = Andrei!,
-    ϵₐ                :: T = eps(T),
-    ϵᵣ                :: T = eps(T),
-    ϵₜ                 :: T = eps(T),
-    η₁                :: T = eps(T)/4, 
-    η₂                :: T = T(2/3), 
-    σ₁                :: T = T(10.0), 
-    σ₂                :: T = T(1/2),
-    γ₁                :: T = T(3/2),
-    τ₁                :: T = T(1/100),
-    τ₂                :: T = T(1/100),
-    τ₃                :: T = T(1/100),
-    τ₄                :: T = T(1/100),
-    λ₀                :: T = 1000 * eps(T),  
+function LM_test(nlp     :: AbstractNLSModel;
+    x0                :: AbstractVector = nlp.meta.x0, 
+    fctD              :: Function =  Andrei!,
+    ϵₐ                :: AbstractFloat = 1e-8,
+    ϵᵣ                :: AbstractFloat = 1e-8,
+    ϵₜ                 :: AbstractFloat = 1/100,
+    η₁                :: AbstractFloat = 1e-3, 
+    η₂                :: AbstractFloat = 2/3, 
+    σ₁                :: AbstractFloat = 10., 
+    σ₂                :: AbstractFloat = 1/2,
+    γ₁                :: AbstractFloat = 3/2,
+    τ₁                :: AbstractFloat = 1/100,
+    τ₂                :: AbstractFloat = 1/100,
+    τ₃                :: AbstractFloat = 1/100,
+    τ₄                :: AbstractFloat = 1/100,
+    λ₀                :: AbstractFloat = 1e-6,  
     alternative_model      :: Bool = false,
     approxD_quasi_nul_lin  :: Bool = false,
     save_df                :: Bool = false,
@@ -22,12 +22,12 @@ function LM_test(nlp :: AbstractNLSModel{T};
     is_LM                  :: Bool = false,
     verbose                :: Bool = false,
     max_eval          :: Int = 100, 
-    max_time          :: T = T(Inf),
+    max_time          :: AbstractFloat = Inf,
     max_iter          :: Int = typemax(Int64)
-    ) where {T<:AbstractFloat}
+    )
     ################ On évalue F(x₀) et J(x₀) ################
     m, n, nnzj = nlp.nls_meta.nequ, nlp.meta.nvar, nlp.nls_meta.nnzj
-    @show ϵₐ
+
     x    = copy(x0)
     xᵖ   = similar(x)
     x₋₁  = similar(x)
@@ -113,6 +113,8 @@ function LM_test(nlp :: AbstractNLSModel{T};
         mul!(Jxd₊Fx, Jx, d)
         Jxd₊Fx .+= Fx
         dDd     = is_LM ? zero(eltype(x0)) : sum((d[i]^2) * D[i] for i = 1 : n)
+        xᵇ   = xᵖ
+        Fxᵇ  = Fxᵖ
         if alternative_model && !(is_LM)
             qxᵖ  = (norm(Jxd₊Fx)^2 + δ * dDd) / 2
             qᵃxᵖ = (norm(Jxd₊Fx)^2 + (1-δ) * dDd) / 2
@@ -123,8 +125,8 @@ function LM_test(nlp :: AbstractNLSModel{T};
                 fxᵃ = norm(Fxᵃ)^2 / 2
                 if fxᵃ < fxᵖ
                     δ = 1-δ
-                    xᵖ  .= xᵃ
-                    Fxᵖ .= Fxᵃ
+                    xᵇ   = xᵃ
+                    Fxᵇ  = Fxᵃ
                     fxᵖ  = fxᵃ
                     qxᵖ  = qᵃxᵖ
                 end
@@ -145,8 +147,8 @@ function LM_test(nlp :: AbstractNLSModel{T};
 
             ############ Mise à jour ############
 
-            x    .= xᵖ
-            Fx   .= Fxᵖ
+            x    .= xᵇ
+            Fx   .= Fxᵇ
             mul!(JᵀF, Jx',Fx)
             jac_coord_residual!(nlp, x, Jvals)
             Jx.vals .= Jvals

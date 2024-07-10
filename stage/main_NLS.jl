@@ -24,12 +24,6 @@ dict_solvers = Dict(
     # :LM_Andrei_quasi_nul_lin => LM_Andrei_quasi_nul_lin,
     # :LM_Andrei_quasi_nul_lin_λD => LM_Andrei_quasi_nul_lin_λD,
     );
-
-solver_colors = Dict(
-    "LM_SPG_alt" => :red,
-    "LM_Zhu_alt" => :blue,
-    "LM_Andrei_alt" => :red,
-)
     
 problems_names = setdiff(names(NLSProblems), [:NLSProblems]);
 problems = (eval((problem))() for problem ∈ problems_names);
@@ -41,7 +35,7 @@ pb_mgh = [mgh02(), mgh06(), mgh08(), mgh10(), mgh15(), mgh16(), mgh17(), mgh19()
 # compare_solvers(pb_sc[14], dict_solvers; type = "obj", save = false)
 
 ######################## Profils de performance #########################
-pp(dict_solvers, pb_mgh; solver_colors = solver_colors, save_stats = false)
+pp(dict_solvers, pb_mgh; save_stats = false)
 
 ####################### Générer tous les graphes ########################
 # for k in eachindex(pb_sc)
