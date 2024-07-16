@@ -55,29 +55,29 @@ function is_quasi_nul(ri, ∇ri, Δ∇ri, sk₋₁, τ)
     return abs(ri)*norm(Δ∇ri) ≤ τ * norm(∇ri)*abs(∇ri'*sk₋₁)
 end 
 
-function LM_D(nlp     :: AbstractNLSModel;
-    x0                :: AbstractVector = nlp.meta.x0, 
-    fctD              :: Function =  Andrei!,
-    ϵₐ                :: AbstractFloat = 1e-8,
-    ϵᵣ                :: AbstractFloat = 1e-8,
-    ϵₜ                 :: AbstractFloat = 1/100,
-    η₁                :: AbstractFloat = 1e-3, 
-    η₂                :: AbstractFloat = 2/3, 
-    σ₁                :: AbstractFloat = 10., 
-    σ₂                :: AbstractFloat = 1/2,
-    γ₁                :: AbstractFloat = 3/2,
-    τ                 :: AbstractFloat = 1/100,
-    λ₀                :: AbstractFloat = 1e-6,  
-    is_alternative_model   :: Bool = false,
-    is_approx_quasi_nul    :: Bool = false,
-    save_df                :: Bool = false,
-    is_λD                  :: Bool = false,
-    is_LM                  :: Bool = false,
-    verbose                :: Bool = false,
+function LM_test(nlp :: AbstractNLSModel{T};
+    x0                :: AbstractVector{T} = nlp.meta.x0, 
+    fctD              :: Function = Andrei!,
+    ϵₐ                :: T = eps(T),
+    ϵᵣ                :: T = eps(T),
+    ϵₜ                 :: T = eps(T),
+    η₁                :: T = eps(T)/4, 
+    η₂                :: T = T(2/3), 
+    σ₁                :: T = T(10.0), 
+    σ₂                :: T = T(1/2),
+    γ₁                :: T = T(3/2),
+    τ                 :: T = T(1/100),
+    λ₀                :: T = 1000 * eps(T),  
+    is_alternative_model :: Bool = false,
+    is_approx_quasi_nul  :: Bool = false,
+    save_df              :: Bool = false,
+    is_λD                :: Bool = false,
+    is_LM                :: Bool = false,
+    verbose              :: Bool = false,
     max_eval          :: Int = 100, 
-    max_time          :: AbstractFloat = Inf,
+    max_time          :: T = T(Inf),
     max_iter          :: Int = typemax(Int64)
-    )
+    ) where {T<:AbstractFloat}
     ################ On évalue F(x₀) et J(x₀) ################
     m, n, nnzj = nlp.nls_meta.nequ, nlp.meta.nvar, nlp.nls_meta.nnzj
 
@@ -162,6 +162,8 @@ function LM_D(nlp     :: AbstractNLSModel;
         xᵖ     .= x .+ d
         residual!(nlp, xᵖ,Fxᵖ)
         fxᵖ  = norm(Fxᵖ)^2 / 2
+        xᵇ   = xᵖ
+        Fxᵇ  = Fxᵖ
         
         ##### sélection du modèle q adéquat #####
         mul!(Jxd₊Fx, Jx, d)
@@ -177,10 +179,10 @@ function LM_D(nlp     :: AbstractNLSModel;
                 fxᵃ = norm(Fxᵃ)^2 / 2
                 if fxᵃ < fxᵖ
                     δ = 1-δ
-                    xᵖ  .= xᵃ
-                    Fxᵖ .= Fxᵃ
-                    fxᵖ  = fxᵃ
-                    qxᵖ  = qᵃxᵖ
+                    xᵇ  = xᵃ
+                    Fxᵇ = Fxᵃ
+                    fxᵖ = fxᵃ
+                    qxᵖ = qᵃxᵖ
                 end
             end
         else
@@ -199,8 +201,8 @@ function LM_D(nlp     :: AbstractNLSModel;
 
             ############ Mise à jour ############
 
-            x    .= xᵖ
-            Fx   .= Fxᵖ
+            x    .= xᵇ
+            Fx   .= Fxᵇ
             mul!(JᵀF, Jx',Fx)
             jac_coord_residual!(nlp, x, Jvals)
             Jx.vals .= Jvals
