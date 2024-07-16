@@ -51,13 +51,9 @@ function Andrei!(D, s, y, n, ϵₜ)
     end
 end 
 
-function is_quasi_nul(Fxi, Fx₋₁i, τ₁, τ₂)
-    return abs(Fxi) < τ₁ * abs(Fx₋₁i) + τ₂
-end
-
-function is_quasi_lin(Fxi, Fx₋₁i, Jx₋₁i, d, τ₃, τ₄)
-    return abs(Fxi - (Fx₋₁i + Jx₋₁i'*d)) < τ₃ * abs(Fxi) + τ₄
-end
+function is_quasi_nul(ri, ∇ri, Δ∇ri, sk₋₁, τ)
+    return abs(ri)*norm(Δ∇ri) ≤ τ * norm(∇ri)*abs(∇ri'*sk₋₁)
+end 
 
 function LM_D(nlp     :: AbstractNLSModel;
     x0                :: AbstractVector = nlp.meta.x0, 
@@ -70,13 +66,10 @@ function LM_D(nlp     :: AbstractNLSModel;
     σ₁                :: AbstractFloat = 10., 
     σ₂                :: AbstractFloat = 1/2,
     γ₁                :: AbstractFloat = 3/2,
-    τ₁                :: AbstractFloat = 1/100,
-    τ₂                :: AbstractFloat = 1/100,
-    τ₃                :: AbstractFloat = 1/100,
-    τ₄                :: AbstractFloat = 1/100,
+    τ                 :: AbstractFloat = 1/100,
     λ₀                :: AbstractFloat = 1e-6,  
-    alternative_model      :: Bool = false,
-    approxD_quasi_nul_lin  :: Bool = false,
+    is_alternative_model   :: Bool = false,
+    is_approx_quasi_nul    :: Bool = false,
     save_df                :: Bool = false,
     is_λD                  :: Bool = false,
     is_LM                  :: Bool = false,
@@ -88,23 +81,23 @@ function LM_D(nlp     :: AbstractNLSModel;
     ################ On évalue F(x₀) et J(x₀) ################
     m, n, nnzj = nlp.nls_meta.nequ, nlp.meta.nvar, nlp.nls_meta.nnzj
 
-    x    = copy(x0)
-    xᵖ   = similar(x)
-    x₋₁  = similar(x)
-    d    = similar(x)
-    Fx   = residual(nlp, x)
-    Fxᵖ  = similar(Fx)
+    x   = copy(x0)
+    xᵖ  = similar(x)
+    x₋₁ = similar(x)
+    d   = similar(x)
+    Fx  = residual(nlp, x)
+    Fxᵖ = similar(Fx)
     
-    Arows        = Vector{Int}(undef, nnzj + n)
-    Acols        = Vector{Int}(undef, nnzj + n)
-    Avals        = Vector{eltype(x0)}(undef, nnzj + n)
-    Arows[nnzj+1:end]   .= [k for k = m+1:m+n]
-    Acols[nnzj+1:end]   .= [k for k = 1:n]
+    Arows = Vector{Int}(undef, nnzj + n)
+    Acols = Vector{Int}(undef, nnzj + n)
+    Avals = Vector{eltype(x0)}(undef, nnzj + n)
+    Arows[nnzj+1:end]   .= m+1:m+n
+    Acols[nnzj+1:end]   .= 1:n
     Avals[nnzj + 1:end] .= 1
-    Jrows   = view(Arows, 1:nnzj)
-    Jcols   = view(Acols, 1:nnzj)
-    Jvals   = view(Avals, 1:nnzj)
-    D       = is_LM ? zeros(eltype(x0), n) : ones(eltype(x0), n)
+    Jrows = view(Arows, 1:nnzj)
+    Jcols = view(Acols, 1:nnzj)
+    Jvals = view(Avals, 1:nnzj)
+    D     = is_LM ? zeros(eltype(x0), n) : ones(eltype(x0), n)
 
     jac_structure_residual!(nlp, Jrows, Jcols)
     jac_coord_residual!(nlp, x, Jvals)
@@ -112,16 +105,17 @@ function LM_D(nlp     :: AbstractNLSModel;
     
     Gx    = Jx' * Fx
     JᵀF   = similar(Gx)
-    ############ ajout alternative_model ############
+    ############ ajout is_alternative_model ############
     Jxd₊Fx = similar(Fx)
-    dDd   = zero(eltype(x0))
-    alternative_model ? xᵃ = similar(x) : nothing
-    alternative_model ? Fxᵃ = similar(Fx) : nothing
+    dDd    = zero(eltype(x0))
+    is_alternative_model ? xᵃ  = similar(x)  : nothing
+    is_alternative_model ? Fxᵃ = similar(Fx) : nothing
     δ = is_LM ? 0 : 1
     ############## ajout quasi_lin_nul ##############
-    approxD_quasi_nul_lin ? r = similar(Fx) : nothing
-    approxD_quasi_nul_lin ? Fx₋₁ = similar(Fx) : nothing
-    approxD_quasi_nul_lin ? Jx₋₁ = similar(Jx) : nothing
+    is_approx_quasi_nul ? r    = similar(Fx) : nothing
+    is_approx_quasi_nul ? Fx₋₁ = similar(Fx) : nothing  # pas utile
+    is_approx_quasi_nul ? Jx₋₁ = similar(Jx) : nothing
+    is_approx_quasi_nul ? Δ∇ri = zeros(eltype(x0), n) : nothing
 
     normFx₀ = norm(Fx)
     normGx₀ = norm(Gx)
@@ -173,7 +167,7 @@ function LM_D(nlp     :: AbstractNLSModel;
         mul!(Jxd₊Fx, Jx, d)
         Jxd₊Fx .+= Fx
         dDd     = is_LM ? zero(eltype(x0)) : sum((d[i]^2) * D[i] for i = 1 : n)
-        if alternative_model && !(is_LM)
+        if is_alternative_model && !(is_LM)
             qxᵖ  = (norm(Jxd₊Fx)^2 + δ * dDd) / 2
             qᵃxᵖ = (norm(Jxd₊Fx)^2 + (1-δ) * dDd) / 2
             if abs(qxᵖ - fxᵖ) > γ₁ * abs(qᵃxᵖ - fxᵖ)
@@ -200,8 +194,8 @@ function LM_D(nlp     :: AbstractNLSModel;
         else
             #### Stockage anciennes valeurs #####
             x₋₁  .= x
-            approxD_quasi_nul_lin ? Jx₋₁ .= Jx : nothing
-            approxD_quasi_nul_lin ? Fx₋₁ .= Fx : nothing
+            is_approx_quasi_nul ? Jx₋₁.vals .= Jx.vals : nothing
+            is_approx_quasi_nul ? Fx₋₁      .= Fx      : nothing # pas utile
 
             ############ Mise à jour ############
 
@@ -216,11 +210,11 @@ function LM_D(nlp     :: AbstractNLSModel;
             fx     = normFx^2 / 2
 
             ##### Maj yk₋₁ pour calcul de D #####
-            if approxD_quasi_nul_lin
+            if is_approx_quasi_nul && iter > 1
                 for i = 1:lastindex(Fx)
-                    quasi_nul = is_quasi_nul(Fx[i], Fx₋₁[i], τ₁, τ₂)
-                    quasi_lin = is_quasi_lin(Fx[i], Fx₋₁[i], Jx₋₁[i,:], d, τ₃, τ₄)
-                    if quasi_lin || quasi_nul
+                    Δ∇ri .= Jx[i,:] - Jx₋₁[i,:]
+                    quasi_nul = is_quasi_nul(Fx[i], Jx[i,:], Δ∇ri, sk₋₁, τ)
+                    if quasi_nul
                         r[i] = 0
                     else
                         r[i] = Fx[i]
@@ -299,13 +293,15 @@ LM_Andrei                          = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andre
 LM_SPG_λD                          = (nlp ; kwargs...) -> LM_D(nlp; fctD = SPG!   , save_df = false, verbose = false, is_λD = true, kwargs...)
 LM_Zhu_λD                          = (nlp ; kwargs...) -> LM_D(nlp; fctD = Zhu!   , save_df = false, verbose = false, is_λD = true, kwargs...)
 LM_Andrei_λD                       = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andrei!, save_df = false, verbose = false, is_λD = true, kwargs...)
-LM_SPG_alt                         = (nlp ; kwargs...) -> LM_D(nlp; fctD = SPG!   , save_df = false, verbose = false, alternative_model = true, kwargs...)
-LM_Zhu_alt                         = (nlp ; kwargs...) -> LM_D(nlp; fctD = Zhu!   , save_df = false, verbose = false, alternative_model = true, kwargs...)
-LM_Andrei_alt                      = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andrei!, save_df = false, verbose = false, alternative_model = true, kwargs...)
-LM_SPG_alt_λD                      = (nlp ; kwargs...) -> LM_D(nlp; fctD = SPG!   , save_df = false, verbose = false, alternative_model = true, is_λD = true, kwargs...)
-LM_Zhu_alt_λD                      = (nlp ; kwargs...) -> LM_D(nlp; fctD = Zhu!   , save_df = false, verbose = false, alternative_model = true, is_λD = true, kwargs...)
-LM_Andrei_alt_λD                   = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andrei!, save_df = false, verbose = false, alternative_model = true, is_λD = true, kwargs...)
-LM_SPG_quasi_nul_lin               = (nlp ; kwargs...) -> LM_D(nlp; fctD = SPG!   , save_df = false, verbose = false, alternative_model = true, approxD_quasi_nul_lin = true, kwargs...)
-LM_Zhu_quasi_nul_lin               = (nlp ; kwargs...) -> LM_D(nlp; fctD = Zhu!   , save_df = false, verbose = false, alternative_model = true, approxD_quasi_nul_lin = true, kwargs...)
-LM_Andrei_quasi_nul_lin            = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andrei!, save_df = false, verbose = false, alternative_model = true, approxD_quasi_nul_lin = true, kwargs...)
-LM_Andrei_quasi_nul_lin_λD         = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andrei!, save_df = false, verbose = false, alternative_model = true, approxD_quasi_nul_lin = true, is_λD = true, kwargs...)
+LM_SPG_alt                         = (nlp ; kwargs...) -> LM_D(nlp; fctD = SPG!   , save_df = false, verbose = false, is_alternative_model = true, kwargs...)
+LM_Zhu_alt                         = (nlp ; kwargs...) -> LM_D(nlp; fctD = Zhu!   , save_df = false, verbose = false, is_alternative_model = true, kwargs...)
+LM_Andrei_alt                      = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andrei!, save_df = false, verbose = false, is_alternative_model = true, kwargs...)
+LM_SPG_alt_λD                      = (nlp ; kwargs...) -> LM_D(nlp; fctD = SPG!   , save_df = false, verbose = false, is_alternative_model = true, is_λD = true, kwargs...)
+LM_Zhu_alt_λD                      = (nlp ; kwargs...) -> LM_D(nlp; fctD = Zhu!   , save_df = false, verbose = false, is_alternative_model = true, is_λD = true, kwargs...)
+LM_Andrei_alt_λD                   = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andrei!, save_df = false, verbose = false, is_alternative_model = true, is_λD = true, kwargs...)
+LM_SPG_quasi_nul_lin               = (nlp ; kwargs...) -> LM_D(nlp; fctD = SPG!   , save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, kwargs...)
+LM_Zhu_quasi_nul_lin               = (nlp ; kwargs...) -> LM_D(nlp; fctD = Zhu!   , save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, kwargs...)
+LM_Andrei_quasi_nul_lin            = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andrei!, save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, kwargs...)
+LM_SPG_quasi_nul_lin_λD            = (nlp ; kwargs...) -> LM_D(nlp; fctD = SPG!   , save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, is_λD = true, kwargs...)
+LM_Zhu_quasi_nul_lin_λD            = (nlp ; kwargs...) -> LM_D(nlp; fctD = Zhu!   , save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, is_λD = true, kwargs...)
+LM_Andrei_quasi_nul_lin_λD         = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andrei!, save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, is_λD = true, kwargs...)
