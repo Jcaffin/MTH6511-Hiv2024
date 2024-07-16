@@ -291,6 +291,7 @@ function LM_D(nlp     :: AbstractNLSModel;
 end
 
 
+hess_exact                         = (nlp ; kwargs...) -> ipopt(nlp, print_level = 0)
 LM                                 = (nlp ; kwargs...) -> LM_D(nlp; is_LM = true  , save_df = false, verbose = false, kwargs...)
 LM_SPG                             = (nlp ; kwargs...) -> LM_D(nlp; fctD = SPG!   , save_df = false, verbose = false, kwargs...)
 LM_Zhu                             = (nlp ; kwargs...) -> LM_D(nlp; fctD = Zhu!   , save_df = false, verbose = false, kwargs...)

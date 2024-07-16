@@ -8,7 +8,7 @@
 "problem-182-116770-pre", 
 "problem-202-132796-pre", 
 "problem-237-154414-pre", 
-"problem-253-163691-pre", 
+# "problem-253-163691-pre", 
 "problem-262-169354-pre", 
 "problem-273-176305-pre", 
 "problem-287-182023-pre", 
@@ -78,7 +78,7 @@ SORTED LIST
 #     "problem-73-11032-pre", 
     "problem-21-11315-pre", 
     "problem-39-18060-pre", 
-    "problem-138-19878-pre" ERROR
+#     "problem-138-19878-pre"
     "problem-50-20431-pre", 
     "problem-16-22106-pre", 
 #     "problem-126-40037-pre", 
@@ -117,7 +117,7 @@ SORTED LIST
 #     "problem-173-111908-pre", 
 #     "problem-1031-110968-pre", 
 #     "problem-1064-113655-pre", 
-#     "problem-182-116770-pre", 
+    "problem-182-116770-pre", ERROR
 #     "problem-1118-118384-pre", 
 #     "problem-1152-122269-pre", 
 #     "problem-1197-126327-pre", 
@@ -132,9 +132,9 @@ SORTED LIST
 #     "problem-1642-153820-pre", 
 #     "problem-1695-155710-pre", 
 #     "problem-253-163691-pre", 
-#     "problem-262-169354-pre", 
-#     "problem-273-176305-pre", 
-#     "problem-287-182023-pre", 
+    "problem-262-169354-pre", ERROR
+    "problem-273-176305-pre", ERROR
+    "problem-287-182023-pre", ERRORx
     "problem-308-195089-pre", ERROR
 #     "problem-245-198739-pre", 
     "problem-356-226730-pre", ERROR

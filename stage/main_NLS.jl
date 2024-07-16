@@ -1,4 +1,4 @@
-# using LinearAlgebra, NLPModels, Printf, Logging, SolverCore, Test, ADNLPModels, SparseArrays, QRMumps
+# using LinearAlgebra, NLPModels, Printf, Logging, SolverCore, Test, ADNLPModels, NLPModelsIpopt, SparseArrays, QRMumps
 # using JSOSolvers, SolverBenchmark, Plots, NLSProblems, SparseMatricesCOO
 # using Dates, DataFrames, PrettyTables, JLD2
 
@@ -6,7 +6,8 @@ include("LM.jl")
 include("AuxiliaryFunctions.jl")
 
 dict_solvers = Dict(
-    # :LM => LM,
+    :hess_exact => hess_exact,
+    :LM => LM,
     # :LM_SPG => LM_SPG,
     # :LM_Zhu => LM_Zhu,
     # :LM_Andrei => LM_Andrei,
@@ -32,7 +33,7 @@ pb_sc = filter(problem -> problem.meta.ncon == 0, pb);
 pb_mgh = [mgh02(), mgh06(), mgh08(), mgh10(), mgh15(), mgh16(), mgh17(), mgh19(), mgh23(), mgh23(20), mgh24(10), mgh26(), mgh30(), mgh31(), mgh31(20), mgh32(), mgh33(), mgh33(20), mgh34(), mgh34(20)]
 
 ###################### Test sur un problème unique #######################
-# compare_solvers(pb_sc[14], dict_solvers; type = "obj", save = false)
+# compare_solvers(pb_mgh[1], dict_solvers; type = "obj", save = false)
 
 ######################## Profils de performance #########################
 pp(dict_solvers, pb_mgh; save_stats = false)
