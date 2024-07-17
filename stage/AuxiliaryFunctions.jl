@@ -300,7 +300,7 @@ function pp(dict_solvers,
     save_stats :: Bool = false,
     kwargs...)
 
-    indicateur = "pp_best_EVAL_JAC"
+    indicateur = "pp_Newton_LM_ITER"
     formatted_date = Dates.format(today(), "dd-mm-yyyy")
     file_jld2 = "Archives/Performance_profiles/"*indicateur*"_"*formatted_date*".jld2"
     file_svg = "Archives/Performance_profiles/"*indicateur*"_"*formatted_date*".svg"
@@ -313,7 +313,8 @@ function pp(dict_solvers,
         @show String(solver)
         save_stats && (dict[String(solver)] = stats[solver][!, cols])
     end
-    cost(df) = (df.status .!= :first_order) * Inf + df.neval_jac_residual
+    # cost(df) = (df.status .!= :first_order) * Inf + df.neval_jac_residual
+    cost(df) = (df.status .!= :first_order) * Inf + df.iter
 
     # Générer le profil de performance avec des couleurs personnalisées
     performance_profile(stats, cost)

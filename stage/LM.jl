@@ -55,7 +55,7 @@ function is_quasi_nul(ri, ∇ri, Δ∇ri, sk₋₁, τ)
     return abs(ri)*norm(Δ∇ri) ≤ τ * norm(∇ri)*abs(∇ri'*sk₋₁)
 end 
 
-function LM_test(nlp :: AbstractNLSModel{T};
+function LM_D(nlp :: AbstractNLSModel{T};
     x0                :: AbstractVector{T} = nlp.meta.x0, 
     fctD              :: Function = Andrei!,
     ϵₐ                :: T = eps(T),
@@ -74,7 +74,7 @@ function LM_test(nlp :: AbstractNLSModel{T};
     is_λD                :: Bool = false,
     is_LM                :: Bool = false,
     verbose              :: Bool = false,
-    max_eval          :: Int = 100, 
+    max_eval          :: Int = 100000, 
     max_time          :: T = T(Inf),
     max_iter          :: Int = typemax(Int64)
     ) where {T<:AbstractFloat}

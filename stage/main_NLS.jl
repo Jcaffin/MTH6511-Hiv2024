@@ -14,9 +14,9 @@ dict_solvers = Dict(
     # :LM_SPG_λD => LM_SPG_λD,
     # :LM_Zhu_λD => LM_Zhu_λD,
     # :LM_Andrei_λD => LM_Andrei_λD,
-    :LM_SPG_alt => LM_SPG_alt,
-    :LM_Zhu_alt => LM_Zhu_alt,
-    :LM_Andrei_alt => LM_Andrei_alt,
+    # :LM_SPG_alt => LM_SPG_alt,
+    # :LM_Zhu_alt => LM_Zhu_alt,
+    # :LM_Andrei_alt => LM_Andrei_alt,
     # :LM_SPG_alt_λD => LM_SPG_alt_λD,
     # :LM_Zhu_alt_λD => LM_Zhu_alt_λD,
     # :LM_Andrei_alt_λD => LM_Andrei_alt_λD,
@@ -36,7 +36,7 @@ pb_mgh = [mgh02(), mgh06(), mgh08(), mgh10(), mgh15(), mgh16(), mgh17(), mgh19()
 # compare_solvers(pb_mgh[1], dict_solvers; type = "obj", save = false)
 
 ######################## Profils de performance #########################
-pp(dict_solvers, pb_mgh; save_stats = false)
+pp(dict_solvers, pb_mgh; save_stats = true)
 
 ####################### Générer tous les graphes ########################
 # for k in eachindex(pb_sc)
