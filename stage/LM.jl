@@ -58,16 +58,16 @@ end
 function LM_D(nlp :: AbstractNLSModel{T};
     x0                :: AbstractVector{T} = nlp.meta.x0, 
     fctD              :: Function = Andrei!,
-    ϵₐ                :: T = eps(T),
-    ϵᵣ                :: T = eps(T),
-    ϵₜ                 :: T = eps(T),
+    ϵₐ                :: T = 1e8 * eps(T),
+    ϵᵣ                :: T = 1e8 * eps(T),
+    ϵₜ                 :: T = 1e12 * eps(T),
     η₁                :: T = eps(T)/4, 
     η₂                :: T = T(2/3), 
     σ₁                :: T = T(10.0), 
     σ₂                :: T = T(1/2),
     γ₁                :: T = T(3/2),
     τ                 :: T = T(1/100),
-    λ₀                :: T = 1000 * eps(T),  
+    λ₀                :: T = 1e10 * eps(T),  
     is_alternative_model :: Bool = false,
     is_approx_quasi_nul  :: Bool = false,
     save_df              :: Bool = false,
@@ -301,9 +301,9 @@ LM_Andrei_alt                      = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andre
 LM_SPG_alt_λD                      = (nlp ; kwargs...) -> LM_D(nlp; fctD = SPG!   , save_df = false, verbose = false, is_alternative_model = true, is_λD = true, kwargs...)
 LM_Zhu_alt_λD                      = (nlp ; kwargs...) -> LM_D(nlp; fctD = Zhu!   , save_df = false, verbose = false, is_alternative_model = true, is_λD = true, kwargs...)
 LM_Andrei_alt_λD                   = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andrei!, save_df = false, verbose = false, is_alternative_model = true, is_λD = true, kwargs...)
-LM_SPG_quasi_nul_lin               = (nlp ; kwargs...) -> LM_D(nlp; fctD = SPG!   , save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, kwargs...)
-LM_Zhu_quasi_nul_lin               = (nlp ; kwargs...) -> LM_D(nlp; fctD = Zhu!   , save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, kwargs...)
-LM_Andrei_quasi_nul_lin            = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andrei!, save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, kwargs...)
-LM_SPG_quasi_nul_lin_λD            = (nlp ; kwargs...) -> LM_D(nlp; fctD = SPG!   , save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, is_λD = true, kwargs...)
-LM_Zhu_quasi_nul_lin_λD            = (nlp ; kwargs...) -> LM_D(nlp; fctD = Zhu!   , save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, is_λD = true, kwargs...)
-LM_Andrei_quasi_nul_lin_λD         = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andrei!, save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, is_λD = true, kwargs...)
+LM_SPG_quasi_nul                   = (nlp ; kwargs...) -> LM_D(nlp; fctD = SPG!   , save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, kwargs...)
+LM_Zhu_quasi_nul                   = (nlp ; kwargs...) -> LM_D(nlp; fctD = Zhu!   , save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, kwargs...)
+LM_Andrei_quasi_nul                = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andrei!, save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, kwargs...)
+LM_SPG_quasi_nul_λD                = (nlp ; kwargs...) -> LM_D(nlp; fctD = SPG!   , save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, is_λD = true, kwargs...)
+LM_Zhu_quasi_nul_λD                = (nlp ; kwargs...) -> LM_D(nlp; fctD = Zhu!   , save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, is_λD = true, kwargs...)
+LM_Andrei_quasi_nul_λD             = (nlp ; kwargs...) -> LM_D(nlp; fctD = Andrei!, save_df = false, verbose = false, is_alternative_model = true, is_approx_quasi_nul = true, is_λD = true, kwargs...)

@@ -300,7 +300,7 @@ function pp(dict_solvers,
     save_stats :: Bool = false,
     kwargs...)
 
-    indicateur = "pp_Newton_LM_ITER"
+    indicateur = "pp_SPGs_ITER"
     formatted_date = Dates.format(today(), "dd-mm-yyyy")
     file_jld2 = "Archives/Performance_profiles/"*indicateur*"_"*formatted_date*".jld2"
     file_svg = "Archives/Performance_profiles/"*indicateur*"_"*formatted_date*".svg"

@@ -1,28 +1,30 @@
-# using LinearAlgebra, NLPModels, Printf, Logging, SolverCore, Test, ADNLPModels, NLPModelsIpopt, SparseArrays, QRMumps
-# using JSOSolvers, SolverBenchmark, Plots, NLSProblems, SparseMatricesCOO
-# using Dates, DataFrames, PrettyTables, JLD2
+using LinearAlgebra, NLPModels, Printf, Logging, SolverCore, Test, ADNLPModels, NLPModelsIpopt, SparseArrays, QRMumps
+using JSOSolvers, SolverBenchmark, Plots, NLSProblems, SparseMatricesCOO
+using Dates, DataFrames, PrettyTables, JLD2
 
 include("LM.jl")
 include("AuxiliaryFunctions.jl")
 
 dict_solvers = Dict(
-    :hess_exact => hess_exact,
-    :LM => LM,
-    # :LM_SPG => LM_SPG,
+    # :hess_exact => hess_exact,
+    # :LM => LM,
+    :LM_SPG => LM_SPG,
     # :LM_Zhu => LM_Zhu,
     # :LM_Andrei => LM_Andrei,
     # :LM_SPG_λD => LM_SPG_λD,
     # :LM_Zhu_λD => LM_Zhu_λD,
     # :LM_Andrei_λD => LM_Andrei_λD,
-    # :LM_SPG_alt => LM_SPG_alt,
+    :LM_SPG_alt => LM_SPG_alt,
     # :LM_Zhu_alt => LM_Zhu_alt,
     # :LM_Andrei_alt => LM_Andrei_alt,
     # :LM_SPG_alt_λD => LM_SPG_alt_λD,
     # :LM_Zhu_alt_λD => LM_Zhu_alt_λD,
     # :LM_Andrei_alt_λD => LM_Andrei_alt_λD,
-    # :LM_SPG_quasi_nul_lin => LM_SPG_quasi_nul_lin,
-    # :LM_Zhu_quasi_nul_lin => LM_Zhu_quasi_nul_lin,
-    # :LM_Andrei_quasi_nul_lin => LM_Andrei_quasi_nul_lin,
+    :LM_SPG_quasi_nul_lin => LM_SPG_quasi_nul,
+    # :LM_Zhu_quasi_nul_lin => LM_Zhu_quasi_nul,
+    # :LM_Andrei_quasi_nul_lin => LM_Andrei_quasi_nul,
+    # :LM_SPG_quasi_nul_λD => LM_SPG_quasi_nul_λD,             
+    # :LM_Zhu_quasi_nul_λD => LM_Zhu_quasi_nul_λD,
     # :LM_Andrei_quasi_nul_lin_λD => LM_Andrei_quasi_nul_lin_λD,
     );
     
