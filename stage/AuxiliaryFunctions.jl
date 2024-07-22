@@ -4,61 +4,16 @@ function write_dataframe_to_doc(df::DataFrame, filename::String)
     end
 end
 
-function write_solvers_df_to_doc(nls, filename::String; kwargs...)
-    write_msg_to_doc("MODÈLE : LM", filename)
-    stats1, df1 = LM_D(nlp; is_LM = true  , save_df = true, kwargs...)
-    rename!(df1, :iter => "itérations", :nf => "évaluations", :F => "‖F(x)‖", :G => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ", :δ => "δ")
-    write_dataframe_to_doc(df1, filename)
-    write_msg_to_doc("Raison d'arrêt : "*String(stats1.status), filename)
-    write_msg_to_doc("", filename)
+function write_solver_df_to_jld2(nls, indicateur_filename::String; kwargs...)
+    formatted_date = Dates.format(today(), "dd-mm-yyyy")
+    file_jld2 = "Archives/Performance_profiles/"*nls.meta.name*indicateur_filename*"_"*formatted_date*".jld2"
+    dict = Dict()
+    stats, df = LM_D(nls; save_df = true, kwargs...)
+    # rename!(df, :iter => "itérations", :nf => "évaluations", :F => "‖F(x)‖", :G => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ", :δ => "δ")
+    dict[nls.meta.name*indicateur_filename] = df
+    dict[indicateur_filename*"_status"] = stats.status
+    save(file_jld2, dict)
     reset!(nls)
-
-    write_msg_to_doc("MODÈLE : D_SPG", filename)
-    stats2, df2 = LM_D(nls; fctD = SPG!,    is_alternative_model = false, is_approx_quasi_nul = false, save_df = true, kwargs...)
-    rename!(df2, :iter => "itérations", :nf => "évaluations", :F => "‖F(x)‖", :G => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ", :δ => "δ")
-    write_dataframe_to_doc(df2, filename)
-    write_msg_to_doc("Raison d'arrêt : "*String(stats2.status), filename)
-    write_msg_to_doc("", filename)
-    reset!(nls)
-
-    write_msg_to_doc("MODÈLE : D_Zhu", filename)
-    stats3, df3 = LM_D(nls; fctD = Zhu!,    is_alternative_model = false, is_approx_quasi_nul = false, save_df = true, kwargs...)
-    rename!(df3, :iter => "itérations", :nf => "évaluations", :F => "‖F(x)‖", :G => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ", :δ => "δ")
-    write_dataframe_to_doc(df3, filename)
-    write_msg_to_doc("Raison d'arrêt : "*String(stats3.status), filename)
-    write_msg_to_doc("", filename)
-    reset!(nls)
-
-    write_msg_to_doc("MODÈLE : D_Andrei", filename)
-    stats4, df4 = LM_D(nls; fctD = Andrei!, is_alternative_model = false, is_approx_quasi_nul = false, save_df = true, kwargs...)
-    rename!(df4, :iter => "itérations", :nf => "évaluations", :F => "‖F(x)‖", :G => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ", :δ => "δ")
-    write_dataframe_to_doc(df4, filename)
-    write_msg_to_doc("Raison d'arrêt : "*String(stats4.status), filename)
-    write_msg_to_doc("", filename)
-    reset!(nls)
-
-    write_msg_to_doc("MODÈLE : alt_SPG", filename)
-    stats5, df5 = LM_D(nls; fctD = SPG!,    is_alternative_model = true, is_approx_quasi_nul = false, save_df = true, kwargs...)
-    rename!(df5, :iter => "itérations", :nf => "évaluations", :F => "‖F(x)‖", :G => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ", :δ => "δ")
-    write_dataframe_to_doc(df5, filename)
-    write_msg_to_doc("Raison d'arrêt : "*String(stats5.status), filename)
-    write_msg_to_doc("", filename)
-    reset!(nls)
-
-    write_msg_to_doc("MODÈLE : alt_Zhu", filename)
-    stats6, df6 = LM_D(nls; fctD = Zhu!,    is_alternative_model = true, is_approx_quasi_nul = false, save_df = true, kwargs...)
-    rename!(df6, :iter => "itérations", :nf => "évaluations", :F => "‖F(x)‖", :G => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ", :δ => "δ")
-    write_dataframe_to_doc(df6, filename)
-    write_msg_to_doc("Raison d'arrêt : "*String(stats6.status), filename)
-    write_msg_to_doc("", filename)
-    reset!(nls)
-
-    write_msg_to_doc("MODÈLE : alt_Andrei", filename)
-    stats7, df7 = LM_D(nls; fctD = Andrei!, is_alternative_model = true, is_approx_quasi_nul = false, save_df = true, kwargs...)
-    rename!(df7, :iter => "itérations", :nf => "évaluations", :F => "‖F(x)‖", :G => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ", :δ => "δ")
-    write_dataframe_to_doc(df7, filename)
-    write_msg_to_doc("Raison d'arrêt : "*String(stats7.status), filename)
-    write_msg_to_doc("", filename)
 end
 
 function fill_pp_file_to_df(file_path::String)
@@ -294,13 +249,12 @@ function compare_solvers(pb_sc,
     save && savefig("Archives/Comparaisons/"*pb_sc.meta.name*"_"*type*".svg")
 end
 
-
 function pp(dict_solvers,
     problems; 
     save_stats :: Bool = false,
     kwargs...)
 
-    indicateur = "pp_SPGs_ITER"
+    indicateur = "OPeq_pp_SPGs_ITER"
     formatted_date = Dates.format(today(), "dd-mm-yyyy")
     file_jld2 = "Archives/Performance_profiles/"*indicateur*"_"*formatted_date*".jld2"
     file_svg = "Archives/Performance_profiles/"*indicateur*"_"*formatted_date*".svg"

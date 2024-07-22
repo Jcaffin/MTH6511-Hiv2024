@@ -2,7 +2,7 @@
 
 julia_version = "1.10.4"
 manifest_format = "2.0"
-project_hash = "0f6407bbc57cdc15670dec5a478997d326a24079"
+project_hash = "9e71016d4648cf1b813445a8712c03ec2a165a0d"
 
 [[deps.ADNLPModels]]
 deps = ["ADTypes", "ForwardDiff", "LinearAlgebra", "NLPModels", "Requires", "ReverseDiff", "SparseArrays", "SparseConnectivityTracer", "SparseMatrixColorings"]
@@ -868,6 +868,12 @@ deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Pk
 git-tree-sha1 = "13652491f6856acfd2db29360e1bbcd4565d04f1"
 uuid = "efe28fd5-8261-553b-a9e1-b2916fc3738e"
 version = "0.5.5+0"
+
+[[deps.OptimizationProblems]]
+deps = ["DataFrames", "JLD2", "JuMP", "LinearAlgebra", "Requires", "SparseArrays", "SpecialFunctions"]
+git-tree-sha1 = "bdabbbbf236e7e8541cff8112622884bdfd3622c"
+uuid = "5049e819-d29b-5fba-b941-0eee7e64c1c6"
+version = "0.8.0"
 
 [[deps.Opus_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]

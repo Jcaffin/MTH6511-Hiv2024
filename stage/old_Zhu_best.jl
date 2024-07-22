@@ -1,0 +1,250 @@
+
+function test_LM(nlp     :: AbstractNLSModel;
+    x0                :: AbstractVector = nlp.meta.x0, 
+    fctD              :: Function =  Andrei!,
+    ϵₐ                :: AbstractFloat = 1e-8,
+    ϵᵣ                :: AbstractFloat = 1e-8,
+    ϵₜ                 :: AbstractFloat = 1/100,
+    η₁                :: AbstractFloat = 1e-3, 
+    η₂                :: AbstractFloat = 2/3, 
+    σ₁                :: AbstractFloat = 10., 
+    σ₂                :: AbstractFloat = 1/2,
+    γ₁                :: AbstractFloat = 3/2,
+    τ₁                :: AbstractFloat = 1/100,
+    τ₂                :: AbstractFloat = 1/100,
+    τ₃                :: AbstractFloat = 1/100,
+    τ₄                :: AbstractFloat = 1/100,
+    λ₀                :: AbstractFloat = 1e-6,  
+    alternative_model      :: Bool = false,
+    approxD_quasi_nul_lin  :: Bool = false,
+    save_df                :: Bool = false,
+    is_λD                  :: Bool = false,
+    is_LM                  :: Bool = false,
+    verbose                :: Bool = false,
+    max_eval          :: Int = 100000, 
+    max_time          :: AbstractFloat = Inf,
+    max_iter          :: Int = typemax(Int64)
+    )
+    ################ On évalue F(x₀) et J(x₀) ################
+    m, n, nnzj = nlp.nls_meta.nequ, nlp.meta.nvar, nlp.nls_meta.nnzj
+
+    x    = copy(x0)
+    xᵖ   = similar(x)
+    x₋₁  = similar(x)
+    d    = similar(x)
+    Fx   = residual(nlp, x)
+    Fxᵖ  = similar(Fx)
+    
+    Arows        = Vector{Int}(undef, nnzj + n)
+    Acols        = Vector{Int}(undef, nnzj + n)
+    Avals        = Vector{eltype(x0)}(undef, nnzj + n)
+    Arows[nnzj+1:end]   .= [k for k = m+1:m+n]
+    Acols[nnzj+1:end]   .= [k for k = 1:n]
+    Avals[nnzj + 1:end] .= 1
+    Jrows   = view(Arows, 1:nnzj)
+    Jcols   = view(Acols, 1:nnzj)
+    Jvals   = view(Avals, 1:nnzj)
+    D       = is_LM ? zeros(eltype(x0), n) : ones(eltype(x0), n)
+
+    jac_structure_residual!(nlp, Jrows, Jcols)
+    jac_coord_residual!(nlp, x, Jvals)
+    Jx = SparseMatrixCOO(m, n, Arows[1:nnzj], Acols[1:nnzj], Avals[1:nnzj])
+    
+    Gx    = Jx' * Fx
+    JᵀF   = similar(Gx)
+    ############ ajout alternative_model ############
+    Jxd₊Fx = similar(Fx)
+    dDd   = zero(eltype(x0))
+    alternative_model ? xᵃ = similar(x) : nothing
+    alternative_model ? Fxᵃ = similar(Fx) : nothing
+    δ = is_LM ? 0 : 1
+    ############## ajout quasi_lin_nul ##############
+    approxD_quasi_nul_lin ? r = similar(Fx) : nothing
+    approxD_quasi_nul_lin ? Fx₋₁ = similar(Fx) : nothing
+    approxD_quasi_nul_lin ? Jx₋₁ = similar(Jx) : nothing
+
+    normFx₀ = norm(Fx)
+    normGx₀ = norm(Gx)
+    normGx  = normGx₀
+    normFx  = normFx₀
+
+    fx  = normFx^2 / 2
+    λ = is_λD ? 1 : λ₀
+
+    ############## pré-allocations ##################
+    yk₋₁ = zeros(eltype(x0), n)
+    sk₋₁ = zeros(eltype(x0), n)
+    qrm_init()
+    spmat = qrm_spmat_init(m+n, n, Arows, Acols, Avals)
+    spfct = qrm_analyse(spmat)
+    b     = fill!(similar(x0, m+n),0)
+
+    iter = 0 
+    iter_time  = 0
+    tired      = neval_residual(nlp) > max_eval || iter_time > max_time
+    status     = :unknown
+    start_time = time()
+    ϵᵍ = ϵₐ + ϵᵣ*normGx₀
+    ϵᶠ = ϵₐ + ϵᵣ*normFx₀
+    optimal    = normGx ≤ ϵᵍ || normFx ≤ ϵᶠ
+
+    ################## Gestion de l'affichage #################
+    save_df && (df = DataFrame(:iter => Int[], :nf => Int[], :F => Float64[], :G => Float64[], :ρ => Float64[],
+               :status => :String, :nd => Float64[], :λ => Float64[], :δ => Int[]))
+    # save_df && rename!(df, :iter => "itérations", :nf => "évaluations", :F => "‖F(x)‖", :G => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ", :δ => "δ")
+    save_df && push!(df, Any[iter, neval_residual(nlp), normFx, normGx, 1, status, 0, λ, δ])
+
+    verbose && @info log_header(
+        [:iter, :nf, :obj, :grad, :ρ, :status, :nd, :λ, :δ],
+        [Int, Int, Float64, Float64, Float64, String, Float64, Float64, Int],
+        hdr_override=Dict(
+        :nf => "#F", :obj => "‖F(x)‖", :grad => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ", :δ => "δ")
+        )
+    while !(optimal || tired)
+        ########## Calcul d (facto QR) ##########
+        b[1:m] .= Fx
+        b     .*= -1
+        argmin_q!(spmat, spfct, Avals, b, d, λ, D, n, nnzj, δ, is_λD)
+        xᵖ     .= x .+ d
+        residual!(nlp, xᵖ,Fxᵖ)
+        fxᵖ  = norm(Fxᵖ)^2 / 2
+        
+        ##### sélection du modèle q adéquat #####
+        mul!(Jxd₊Fx, Jx, d)
+        Jxd₊Fx .+= Fx
+        dDd     = is_LM ? zero(eltype(x0)) : sum((d[i]^2) * D[i] for i = 1 : n)
+        if alternative_model && !(is_LM)
+            qxᵖ  = (norm(Jxd₊Fx)^2 + δ * dDd) / 2
+            qᵃxᵖ = (norm(Jxd₊Fx)^2 + (1-δ) * dDd) / 2
+            if abs(qxᵖ - fxᵖ) > γ₁ * abs(qᵃxᵖ - fxᵖ)
+                argmin_q!(spmat, spfct, Avals, b, d, λ, D, n, nnzj, 1-δ, is_λD)
+                xᵃ .= x .+ d
+                residual!(nlp, xᵃ, Fxᵃ)
+                fxᵃ = norm(Fxᵃ)^2 / 2
+                if fxᵃ < fxᵖ
+                    δ = 1-δ
+                    xᵖ  .= xᵃ
+                    Fxᵖ .= Fxᵃ
+                    fxᵖ  = fxᵃ
+                    qxᵖ  = qᵃxᵖ
+                end
+            end
+        else
+            qxᵖ  = (norm(Jxd₊Fx)^2 + dDd) / 2
+        end
+        ρ = (fx - fxᵖ) / (fx - qxᵖ)
+
+        if ρ < η₁
+            λ = max(λ₀, σ₁ * λ)
+            status = :increase_λ
+        else
+            #### Stockage anciennes valeurs #####
+            x₋₁  .= x
+            approxD_quasi_nul_lin ? Jx₋₁ .= Jx : nothing
+            approxD_quasi_nul_lin ? Fx₋₁ .= Fx : nothing
+
+            ############ Mise à jour ############
+
+            x    .= xᵖ
+            Fx   .= Fxᵖ
+            mul!(JᵀF, Jx',Fx)
+            jac_coord_residual!(nlp, x, Jvals)
+            Jx.vals .= Jvals
+            mul!(Gx,Jx',Fx)
+            normFx = norm(Fx)
+            normGx = norm(Gx)
+            fx     = normFx^2 / 2
+
+            ##### Maj yk₋₁ pour calcul de D #####
+            if approxD_quasi_nul_lin
+                for i = 1:lastindex(Fx)
+                    quasi_nul = is_quasi_nul(Fx[i], Fx₋₁[i], τ₁, τ₂)
+                    quasi_lin = is_quasi_lin(Fx[i], Fx₋₁[i], Jx₋₁[i,:], d, τ₃, τ₄)
+                    if quasi_lin || quasi_nul
+                        r[i] = 0
+                    else
+                        r[i] = Fx[i]
+                    end
+                end
+                mul!(yk₋₁,Jx',r)
+                mul!(yk₋₁,Jx₋₁',r,-1,1)
+            else
+                mul!(yk₋₁,Jx',Fx)
+                yk₋₁ .-= JᵀF
+            end
+            sk₋₁ .= x .- x₋₁
+            is_LM ? nothing : fctD(D, sk₋₁, yk₋₁, n, ϵₜ)
+            
+            status = :success    
+            if ρ ≥ η₂
+                λ = σ₂ * λ
+            end
+        end
+
+        iter_time    = time() - start_time
+        iter        += 1
+
+        verbose && @info log_row(Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm(d), λ, δ])
+        save_df && push!(df, Any[iter, neval_residual(nlp), normFx, normGx, ρ, status, norm(d), λ, δ])
+
+        many_evals   = neval_residual(nlp) > max_eval
+        iter_limit   = iter > max_iter
+        tired        = many_evals || iter_time > max_time || iter_limit
+        optimal      = normGx ≤ ϵᵍ || normFx ≤ ϵᶠ
+        
+    end
+    qrm_finalize()
+
+    status = if optimal 
+        :first_order
+        elseif tired
+            if neval_residual(nlp) > max_eval
+                :max_eval
+            elseif iter_time > max_time
+                :max_time
+            elseif iter > max_iter
+                :max_iter
+            else
+                :unknown_tired
+            end
+        else
+        :unknown
+        end
+
+    if save_df
+        return GenericExecutionStats(nlp; 
+            status, 
+            solution = x,
+            objective = normFx^2 / 2,
+            dual_feas = normGx,
+            iter = iter, 
+            elapsed_time = iter_time), df
+    else
+        return GenericExecutionStats(nlp; 
+            status, 
+            solution = x,
+            objective = normFx^2 / 2,
+            dual_feas = normGx,
+            iter = iter, 
+            elapsed_time = iter_time) 
+    end
+end
+
+
+test                                 = (nlp ; kwargs...) -> test_LM(nlp; is_LM = true  , save_df = false, verbose = false, kwargs...)
+test_SPG                             = (nlp ; kwargs...) -> test_LM(nlp; fctD = SPG!   , save_df = false, verbose = false, kwargs...)
+test_Zhu                             = (nlp ; kwargs...) -> test_LM(nlp; fctD = Zhu!   , save_df = false, verbose = false, kwargs...)
+test_Andrei                          = (nlp ; kwargs...) -> test_LM(nlp; fctD = Andrei!, save_df = false, verbose = false, kwargs...)
+test_SPG_λD                          = (nlp ; kwargs...) -> test_LM(nlp; fctD = SPG!   , save_df = false, verbose = false, is_λD = true, kwargs...)
+test_Zhu_λD                          = (nlp ; kwargs...) -> test_LM(nlp; fctD = Zhu!   , save_df = false, verbose = false, is_λD = true, kwargs...)
+test_Andrei_λD                       = (nlp ; kwargs...) -> test_LM(nlp; fctD = Andrei!, save_df = false, verbose = false, is_λD = true, kwargs...)
+test_SPG_alt                         = (nlp ; kwargs...) -> test_LM(nlp; fctD = SPG!   , save_df = false, verbose = false, alternative_model = true, kwargs...)
+test_Zhu_alt                         = (nlp ; kwargs...) -> test_LM(nlp; fctD = Zhu!   , save_df = false, verbose = false, alternative_model = true, kwargs...)
+test_Andrei_alt                      = (nlp ; kwargs...) -> test_LM(nlp; fctD = Andrei!, save_df = false, verbose = false, alternative_model = true, kwargs...)
+test_SPG_alt_λD                      = (nlp ; kwargs...) -> test_LM(nlp; fctD = SPG!   , save_df = false, verbose = false, alternative_model = true, is_λD = true, kwargs...)
+test_Zhu_alt_λD                      = (nlp ; kwargs...) -> test_LM(nlp; fctD = Zhu!   , save_df = false, verbose = false, alternative_model = true, is_λD = true, kwargs...)
+test_Andrei_alt_λD                   = (nlp ; kwargs...) -> test_LM(nlp; fctD = Andrei!, save_df = false, verbose = false, alternative_model = true, is_λD = true, kwargs...)
+test_SPG_quasi_nul_lin               = (nlp ; kwargs...) -> test_LM(nlp; fctD = SPG!   , save_df = false, verbose = false, alternative_model = true, approxD_quasi_nul_lin = true, kwargs...)
+test_Zhu_quasi_nul_lin               = (nlp ; kwargs...) -> test_LM(nlp; fctD = Zhu!   , save_df = false, verbose = false, alternative_model = true, approxD_quasi_nul_lin = true, kwargs...)
+test_Andrei_quasi_nul_lin            = (nlp ; kwargs...) -> test_LM(nlp; fctD = Andrei!, save_df = false, verbose = false, alternative_model = true, approxD_quasi_nul_lin = true, kwargs...)
+test_Andrei_quasi_nul_lin_λD         = (nlp ; kwargs...) -> test_LM(nlp; fctD = Andrei!, save_df = false, verbose = false, alternative_model = true, approxD_quasi_nul_lin = true, is_λD = true, kwargs...)
