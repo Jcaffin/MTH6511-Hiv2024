@@ -1,20 +1,20 @@
 
-function test_LM(nlp     :: AbstractNLSModel;
-    x0                :: AbstractVector = nlp.meta.x0, 
-    fctD              :: Function =  Andrei!,
-    ϵₐ                :: AbstractFloat = 1e-8,
-    ϵᵣ                :: AbstractFloat = 1e-8,
-    ϵₜ                 :: AbstractFloat = 1/100,
-    η₁                :: AbstractFloat = 1e-3, 
-    η₂                :: AbstractFloat = 2/3, 
-    σ₁                :: AbstractFloat = 10., 
-    σ₂                :: AbstractFloat = 1/2,
-    γ₁                :: AbstractFloat = 3/2,
-    τ₁                :: AbstractFloat = 1/100,
-    τ₂                :: AbstractFloat = 1/100,
-    τ₃                :: AbstractFloat = 1/100,
-    τ₄                :: AbstractFloat = 1/100,
-    λ₀                :: AbstractFloat = 1e-6,  
+function test_LM(nlp     :: AbstractNLSModel{T};
+    x0                :: AbstractVector{T} = nlp.meta.x0, 
+    fctD              :: Function = Andrei!,
+    ϵₐ                :: T = 1e8 * eps(T),
+    ϵᵣ                :: T = 1e8 * eps(T),
+    ϵₜ                 :: T = 1e12 * eps(T),
+    η₁                :: T = eps(T)/4, 
+    η₂                :: T = T(2/3), 
+    σ₁                :: T = T(10.0), 
+    σ₂                :: T = T(1/2),
+    γ₁                :: T = T(3/2),
+    τ₁                :: T = T(1/100),
+    τ₂                :: T = T(1/100),
+    τ₃                :: T = T(1/100),
+    τ₄                :: T = T(1/100),
+    λ₀                :: T = 1e10 * eps(T),
     alternative_model      :: Bool = false,
     approxD_quasi_nul_lin  :: Bool = false,
     save_df                :: Bool = false,
@@ -22,9 +22,9 @@ function test_LM(nlp     :: AbstractNLSModel;
     is_LM                  :: Bool = false,
     verbose                :: Bool = false,
     max_eval          :: Int = 100000, 
-    max_time          :: AbstractFloat = Inf,
+    max_time          :: T = T(Inf),
     max_iter          :: Int = typemax(Int64)
-    )
+    ) where {T<:AbstractFloat}
     ################ On évalue F(x₀) et J(x₀) ################
     m, n, nnzj = nlp.nls_meta.nequ, nlp.meta.nvar, nlp.nls_meta.nnzj
 

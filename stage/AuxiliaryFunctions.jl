@@ -6,7 +6,7 @@ end
 
 function write_solver_df_to_jld2(nls, indicateur_filename::String; kwargs...)
     formatted_date = Dates.format(today(), "dd-mm-yyyy")
-    file_jld2 = "Archives/Performance_profiles/"*nls.meta.name*indicateur_filename*"_"*formatted_date*".jld2"
+    file_jld2 = "Archives/Performance_profiles/"*nls.meta.name*"_"*indicateur_filename*"_"*formatted_date*".jld2"
     dict = Dict()
     stats, df = LM_D(nls; save_df = true, kwargs...)
     # rename!(df, :iter => "itérations", :nf => "évaluations", :F => "‖F(x)‖", :G => "‖J'.F‖", :ρ => "ρ", :nd => "‖d‖", :λ => "λ", :δ => "δ")
@@ -271,9 +271,18 @@ function pp(dict_solvers,
     cost(df) = (df.status .!= :first_order) * Inf + df.iter
 
     # Générer le profil de performance avec des couleurs personnalisées
-    performance_profile(stats, cost)
-
-    display(current())
+    p = performance_profile(stats, cost; b = PlotsBackend())
+    series = p.series_list
+    for s in series
+        if s[:label] == "LM_SPG_alt"
+            s[:linecolor] = :red
+        elseif s[:label] == "LM_Zhu_alt 2"
+            s[:linecolor] = :blue
+        elseif s[:label] == "LM_Andrei_alt 3"
+            s[:linecolor] = :green
+        end
+    end
+    display(p)
     save_stats && save(file_jld2, dict)
     save_stats && savefig(file_svg)
 end

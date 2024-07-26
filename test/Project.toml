@@ -1,5 +1,7 @@
 [deps]
 ADNLPModels = "54578032-b7ea-4c30-94aa-7cbd1cce6c9a"
+BenchmarkProfiles = "ecbce9bc-3e5e-569d-9e29-55181f61f8d0"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 NLPModelsModifiers = "e01155f1-5c6f-4375-a9d8-616dd036575f"
 OptimizationProblems = "5049e819-d29b-5fba-b941-0eee7e64c1c6"
+OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
