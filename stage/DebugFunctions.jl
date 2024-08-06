@@ -54,3 +54,9 @@ function write_sparse_matrix_to_doc(A::SparseMatrixCSC, filename::String, var_na
         println(file)
     end
 end
+
+function write_dataframe_to_doc(df::DataFrame, filename::String)
+    open(filename, "a") do file
+        pretty_table(file, df, tf = tf_unicode_rounded) 
+    end
+end
